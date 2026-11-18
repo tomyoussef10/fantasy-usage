@@ -71,10 +71,13 @@ def ordinal(n):
     return f"{n}{suffix}"
 
 
-def power_rankings(league_table, weekly, lineup=None):
-    """Returns (team rankings, every team's starters with slot ranks, position ranks)."""
+def power_rankings(league_table, weekly, lineup=None, values=None):
+    """Returns (team rankings, every team's starters with slot ranks, position ranks).
+    values: optional {player_id: value} to rank by instead of value per game."""
     lineup = lineup or DEFAULT_LINEUP
     players = player_values(league_table, weekly)
+    if values is not None:   # e.g. this week's projections or rest-of-season projections
+        players["value"] = players["player_id"].map(values).fillna(0.0)
 
     lineups = []
     for team, team_players in players.groupby("fantasy_team"):

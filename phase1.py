@@ -19,12 +19,23 @@ import pandas as pd
 
 # Bump this number whenever the loaded data gets new columns. The website includes it in
 # its cache key, so old saved data is thrown away automatically after an update.
-DATA_VERSION = 3
+DATA_VERSION = 4
 
 SEASON = 2026                       # the current season (the site's default)
 SEASONS = [2026, 2025]              # seasons visitors can pick
 BASE_URL = "https://github.com/nflverse/nflverse-data/releases/download"
 PLAYERS_URL = f"{BASE_URL}/players/players.csv"
+
+
+SCHEDULE_URL = f"{BASE_URL}/schedules/games.csv"
+
+
+def load_schedule(season=SEASON):
+    """Every regular-season game: week, home and away teams, Vegas spread and total."""
+    games = pd.read_csv(SCHEDULE_URL, low_memory=False,
+                        usecols=["season", "game_type", "week", "home_team", "away_team",
+                                 "spread_line", "total_line"])
+    return games[(games["season"] == season) & (games["game_type"] == "REG")]
 
 
 def data_url(kind, season):

@@ -9,6 +9,7 @@ import phase1
 import news
 import leagues
 import rankings
+import projections
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
@@ -67,13 +68,16 @@ def get_data(season, data_version):
     snaps = phase1.load_snaps(players, season)
     weekly = phase1.build_weekly(plays, players, snaps)
     status = phase1.load_status(season)
-    return plays, players, snaps, weekly, status
+    schedule = phase1.load_schedule(season)
+    return plays, players, snaps, weekly, status, schedule
 
 
 st.sidebar.header("Filters")
 season = st.sidebar.selectbox("Season", phase1.SEASONS)
 with st.spinner(f"Loading {season} NFL data (about 30 seconds the first time)..."):
-    plays, players, snaps, weekly, status = get_data(season, phase1.DATA_VERSION)
+    plays, players, snaps, weekly, status, schedule = get_data(season, phase1.DATA_VERSION)
+# Keep the full season for projections, before the week filter trims it
+plays_all, snaps_all, weekly_all = plays, snaps, weekly
 
 
 # ---------- Part 2: filters in the sidebar (they apply to every tab) ----------
@@ -122,6 +126,31 @@ if settings != dict(phase1.PPR_SCORING, catches=PRESETS[scoring]):
 
 table["fantasy_points"] = phase1.score(table, settings)
 weekly = weekly.assign(fantasy_points=phase1.score(weekly, settings))
+
+
+# ---------- Projections: next week and rest of season ----------
+def load_shadows(path="shadow_matchups.txt"):
+    """{receiver: cornerback} from shadow_matchups.txt."""
+    try:
+        with open(path) as f:
+            pairs = [line.split(",", 1) for line in f
+                     if line.strip() and not line.startswith("#") and "," in line]
+        return {receiver.strip(): corner.strip() for receiver, corner in pairs}
+    except FileNotFoundError:
+        return {}
+
+
+next_week = int(plays_all["week"].max()) + 1
+has_projections = next_week <= 18
+if has_projections:
+    weekly_all = weekly_all.assign(fantasy_points=phase1.score(weekly_all, settings))
+    full_table = phase1.build_table(plays_all, players, snaps_all)
+    full_table["fantasy_points"] = phase1.score(full_table, settings)
+    week_proj = projections.project(weekly_all, full_table, schedule, plays_all,
+                                    "fantasy_points", next_week, load_shadows())
+    ros = projections.rest_of_season(weekly_all, full_table, schedule, plays_all,
+                                     "fantasy_points", next_week)
+    week_proj = week_proj.merge(ros, on="player_id", how="left")
 table = phase1.add_expected_points(table, "fantasy_points")
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
@@ -149,6 +178,8 @@ COLUMN_NAMES = {
     "takeaways": "Takeaways", "defensive_tds": "D/ST TD", "safeties": "Safeties",
     "points_allowed_per_game": "Points allowed/game", "yards_allowed_per_game": "Yards allowed/game",
     "dst_points": "Fantasy points",
+    "opponent": "Opp", "matchup_label": "Matchup", "implied": "Team implied pts",
+    "shadow": "Shadowed by", "projection": "Projected pts", "ros_points": "Rest of season pts",
 }
 PERCENT_COLUMNS = ["fg_pct", "sack_rate", "snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
@@ -172,9 +203,42 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-qbs_tab, receivers_tab, rbs_tab, k_tab, dst_tab, buy_low_tab, league_tab, player_tab = st.tabs(
-    ["Quarterbacks", "Receivers", "Running backs", "Kickers", "Defenses", "Buy low",
-     "My league", "Player search"])
+(proj_tab, qbs_tab, receivers_tab, rbs_tab, k_tab, dst_tab, buy_low_tab, league_tab,
+ player_tab) = st.tabs(["Projections", "Quarterbacks", "Receivers", "Running backs", "Kickers",
+                        "Defenses", "Buy low", "My league", "Player search"])
+
+with proj_tab:
+    if not has_projections:
+        st.info("This season is over. Pick the current season in the sidebar to see projections.")
+    else:
+        st.write(f"**Week {next_week} projections** ({scoring} scoring)")
+        st.caption("Projection = recent and season form (half points, half usage) × matchup "
+                   "(points the opponent allows to the position) × Vegas implied team points "
+                   "× shadow coverage. Backtested on weeks 5-10: average miss 5.9 points per "
+                   "player, slightly better than a season average. Treat these as estimates.")
+        proj_rows = week_proj.merge(status[["player_id", "status"]], on="player_id", how="left")
+        proj_rows["status"] = proj_rows["status"].fillna("Unknown")
+        proj_rows.loc[proj_rows["status"] == "Injured reserve", "status"] = "⚠️ Injured reserve"
+        proj_rows.loc[proj_rows["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
+        proj_rows.loc[proj_rows["status"] != "Active", "projection"] = 0.0
+        proj_rows.loc[proj_rows["status"] == "❌ Out for season", "ros_points"] = 0.0
+        proj_rows["matchup_label"] = pd.cut(proj_rows["matchup"], [0, 0.95, 1.05, 2],
+                                            labels=["🔴 Tough", "⚪ Neutral", "🟢 Good"])
+        proj_rows["shadow"] = proj_rows["shadow"].where(proj_rows["shadow"] == "",
+                                                        "🛡️ " + proj_rows["shadow"])
+        proj_pos = st.radio("Position", ["All", "QB", "RB", "WR", "TE"], horizontal=True,
+                            key="proj_pos")
+        if proj_pos != "All":
+            proj_rows = proj_rows[proj_rows["position"] == proj_pos]
+        if team != "All":
+            proj_rows = proj_rows[proj_rows["team"] == team]
+        proj_rows = proj_rows[proj_rows["baseline"] >= 3].sort_values("projection",
+                                                                      ascending=False)
+        show_table(proj_rows, ["player", "team", "position", "status", "opponent",
+                               "matchup_label", "implied", "shadow", "projection",
+                               "ros_points"])
+        st.caption("Shadow coverage comes from shadow_matchups.txt, a list kept by hand from "
+                   "the news each week.")
 
 with k_tab:
     st.caption("Standard kicker scoring: 3 points for a field goal under 40 yards, 4 for 40-49, "
@@ -301,8 +365,17 @@ with league_tab:
         columns = ["player", "team", "position", "status", "snap_share", "target_share",
                    "carries", "fantasy_points", "expected_points"]
         # ----- Power rankings -----
-        team_ranks, starters, positions = rankings.power_rankings(league_table, weekly, lineup)
         st.subheader("Power rankings")
+        views = (["This week", "Rest of season", "Season so far"] if has_projections
+                 else ["Season so far"])
+        view = st.radio("Rank by", views, horizontal=True)
+        values = None
+        if view == "This week":
+            values = week_proj.set_index("player_id")["projection"]
+        elif view == "Rest of season":
+            values = week_proj.set_index("player_id")["ros_points"]
+        team_ranks, starters, positions = rankings.power_rankings(league_table, weekly, lineup,
+                                                                  values)
         st.caption("Player value = points per game blended with expected points per game. "
                    "Each team's best healthy lineup is scored and the top team is set to 100.")
         st.dataframe(team_ranks.rename(columns={"rank": "Rank", "fantasy_team": "Team",
@@ -327,7 +400,7 @@ with league_tab:
             st.caption("Starter rankings (each slot vs. the same slot on every team)")
             mine_slots["value"] = mine_slots["value"].round(1)
             st.dataframe(mine_slots[["slot", "player", "value", "Rank", "grade"]].rename(
-                columns={"slot": "Slot", "player": "Player", "value": "Value per game",
+                columns={"slot": "Slot", "player": "Player", "value": "Value",
                          "grade": "Grade"}), hide_index=True)
 
         st.subheader("Your roster")

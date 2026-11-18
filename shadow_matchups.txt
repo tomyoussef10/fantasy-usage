@@ -1,0 +1,6 @@
+# Receivers expected to be shadowed by a top cornerback THIS week.
+# Format: Receiver full name, Cornerback name   (one per line, from the news)
+# A shadowed receiver keeps 85% of his projection and shows a 🛡️ warning.
+# Clear this list every week. Lines starting with # are ignored.
+# Example:
+# Ja'Marr Chase, Patrick Surtain
