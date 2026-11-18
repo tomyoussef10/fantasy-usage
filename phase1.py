@@ -17,13 +17,22 @@ CC-BY-SA 4.0.
 import numpy as np
 import pandas as pd
 
-SEASON = 2026
+SEASON = 2026                       # the current season (the site's default)
+SEASONS = [2026, 2025]              # seasons visitors can pick
 BASE_URL = "https://github.com/nflverse/nflverse-data/releases/download"
-PBP_URL = f"{BASE_URL}/pbp/play_by_play_{SEASON}.csv.gz"
 PLAYERS_URL = f"{BASE_URL}/players/players.csv"
-SNAPS_URL = f"{BASE_URL}/snap_counts/snap_counts_{SEASON}.csv"
-FTN_URL = f"{BASE_URL}/ftn_charting/ftn_charting_{SEASON}.csv"
-ROSTERS_URL = f"{BASE_URL}/weekly_rosters/roster_weekly_{SEASON}.csv"
+
+
+def data_url(kind, season):
+    """Web address of one nflverse data file for one season."""
+    files = {
+        "pbp": f"pbp/play_by_play_{season}.csv.gz",
+        "snaps": f"snap_counts/snap_counts_{season}.csv",
+        "ftn": f"ftn_charting/ftn_charting_{season}.csv",
+        "rosters": f"weekly_rosters/roster_weekly_{season}.csv",
+    }
+    return f"{BASE_URL}/{files[kind]}"
+
 
 # Roster status codes from the weekly rosters file, in plain English
 STATUS_NAMES = {"ACT": "Active", "RES": "Injured reserve", "INA": "Inactive",
@@ -49,13 +58,13 @@ FTN_COLUMNS = ["nflverse_game_id", "nflverse_play_id", "read_thrown",
 
 # ---------- Step 1: load the data ----------
 
-def load_plays(source=PBP_URL, ftn_source=FTN_URL):
+def load_plays(season=SEASON):
     """One season of play-by-play (one row per play, regular season only),
     with FTN charting columns attached to each play."""
-    plays = pd.read_csv(source, usecols=PBP_COLUMNS, low_memory=False)
+    plays = pd.read_csv(data_url("pbp", season), usecols=PBP_COLUMNS, low_memory=False)
     plays = plays[plays["season_type"] == "REG"]
 
-    ftn = pd.read_csv(ftn_source, usecols=FTN_COLUMNS)
+    ftn = pd.read_csv(data_url("ftn", season), usecols=FTN_COLUMNS)
     plays = plays.merge(ftn, left_on=["game_id", "play_id"],
                         right_on=["nflverse_game_id", "nflverse_play_id"], how="left")
     for col in ["is_catchable_ball", "is_contested_ball", "is_drop"]:
@@ -71,22 +80,24 @@ def load_players(source=PLAYERS_URL):
                                    "display_name": "full_name"})
 
 
-def load_snaps(source=SNAPS_URL, players=None):
+def load_snaps(players, season=SEASON):
     """Offensive snaps per player per game, matched to the same player IDs as the plays."""
-    snaps = pd.read_csv(source, usecols=["game_id", "game_type", "week", "team",
+    snaps = pd.read_csv(data_url("snaps", season), usecols=["game_id", "game_type", "week", "team",
                                          "pfr_player_id", "offense_snaps"])
     snaps = snaps[snaps["game_type"] == "REG"]
     ids = players[["pfr_id", "player_id"]].dropna()
     return snaps.merge(ids, left_on="pfr_player_id", right_on="pfr_id")
 
 
-def load_status(source=ROSTERS_URL):
+def load_status(season=SEASON):
     """Each player's current roster status (Active, Injured reserve, ...) and bio
     (photo, jersey number, height, weight, college, experience), taken from the most
     recent week of the weekly rosters file."""
-    rosters = pd.read_csv(source, usecols=["gsis_id", "week", "status", "jersey_number",
-                                           "height", "weight", "college", "years_exp",
-                                           "birth_date", "headshot_url"])
+    rosters = pd.read_csv(data_url("rosters", season),
+                          usecols=["gsis_id", "week", "game_type", "status", "jersey_number",
+                                   "height", "weight", "college", "years_exp",
+                                   "birth_date", "headshot_url"])
+    rosters = rosters[rosters["game_type"] == "REG"].drop(columns="game_type")
     latest = rosters.sort_values("week").drop_duplicates("gsis_id", keep="last")
     latest["status"] = latest["status"].map(STATUS_NAMES).fillna(latest["status"])
     return latest.rename(columns={"gsis_id": "player_id"}).drop(columns="week")
@@ -328,7 +339,7 @@ if __name__ == "__main__":
     print(f"Loading {SEASON} data (this takes about 30 seconds)...")
     players = load_players()
     plays = load_plays()
-    snaps = load_snaps(players=players)
+    snaps = load_snaps(players)
     table = build_table(plays, players, snaps)
     print(f"Weeks included: {plays['week'].min()}-{plays['week'].max()}\n")
 

@@ -10,7 +10,7 @@ import news
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
-st.caption(f"{phase1.SEASON} regular season · Data: nflverse · Player photos: NFL · "
+st.caption(f"Regular season · Data: nflverse · Player photos: NFL · "
            "Charting data (first reads, drops, contested and catchable balls): FTN Data via nflverse")
 
 
@@ -57,22 +57,24 @@ with st.expander("Latest NFL news", expanded=True):
 
 
 # ---------- Part 1: load the data once a day, then reuse it ----------
-@st.cache_data(ttl=60 * 60 * 24)  # refresh once a day
-def get_data():
+# max_entries=1: keep only one season in memory at a time, so the free server doesn't run out
+@st.cache_data(ttl=60 * 60 * 24, max_entries=1)  # refresh once a day
+def get_data(season):
     players = phase1.load_players()
-    plays = phase1.load_plays()
-    snaps = phase1.load_snaps(players=players)
+    plays = phase1.load_plays(season)
+    snaps = phase1.load_snaps(players, season)
     weekly = phase1.build_weekly(plays, players, snaps)
-    status = phase1.load_status()
+    status = phase1.load_status(season)
     return plays, players, snaps, weekly, status
 
 
-with st.spinner("Loading NFL data (about 30 seconds the first time)..."):
-    plays, players, snaps, weekly, status = get_data()
+st.sidebar.header("Filters")
+season = st.sidebar.selectbox("Season", phase1.SEASONS)
+with st.spinner(f"Loading {season} NFL data (about 30 seconds the first time)..."):
+    plays, players, snaps, weekly, status = get_data(season)
 
 
 # ---------- Part 2: filters in the sidebar (they apply to every tab) ----------
-st.sidebar.header("Filters")
 first, last = int(plays["week"].min()), int(plays["week"].max())
 weeks = st.sidebar.slider("Weeks", first, last, (first, last))
 plays = plays[plays["week"].between(weeks[0], weeks[1])]
@@ -93,7 +95,7 @@ def load_out_for_season(path="out_for_season.txt"):
         return set()
 
 
-out_for_season = load_out_for_season()
+out_for_season = load_out_for_season() if season == phase1.SEASON else set()
 table.loc[table["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
 
 # Scoring: pick a preset, then change any value under "Customize scoring"

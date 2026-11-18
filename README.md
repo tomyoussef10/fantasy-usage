@@ -23,7 +23,7 @@ Built with Python, pandas, and Streamlit.
 | Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. Injured reserve players are marked with ⚠️; released, retired, and practice-squad players are left off the buy low list |
 | Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
-The site opens with the latest NFL headlines, then has five tabs: **Quarterbacks**, **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
+The site opens with the latest NFL headlines, then has five tabs: **Quarterbacks**, **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Pick the season (2026 or 2025), week range, team, and scoring in the sidebar.
 
 ## Out for the season
 
