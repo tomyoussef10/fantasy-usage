@@ -23,6 +23,12 @@ PBP_URL = f"{BASE_URL}/pbp/play_by_play_{SEASON}.csv.gz"
 PLAYERS_URL = f"{BASE_URL}/players/players.csv"
 SNAPS_URL = f"{BASE_URL}/snap_counts/snap_counts_{SEASON}.csv"
 FTN_URL = f"{BASE_URL}/ftn_charting/ftn_charting_{SEASON}.csv"
+ROSTERS_URL = f"{BASE_URL}/weekly_rosters/roster_weekly_{SEASON}.csv"
+
+# Roster status codes from the weekly rosters file, in plain English
+STATUS_NAMES = {"ACT": "Active", "RES": "Injured reserve", "INA": "Inactive",
+                "DEV": "Practice squad", "CUT": "Released", "RET": "Retired",
+                "EXE": "Exempt", "TRD": "Traded", "TRC": "Traded", "TRT": "Traded"}
 
 # Only the play-by-play columns this project uses. Loading fewer columns
 # makes the site faster and uses less memory.
@@ -72,6 +78,15 @@ def load_snaps(source=SNAPS_URL, players=None):
     snaps = snaps[snaps["game_type"] == "REG"]
     ids = players[["pfr_id", "player_id"]].dropna()
     return snaps.merge(ids, left_on="pfr_player_id", right_on="pfr_id")
+
+
+def load_status(source=ROSTERS_URL):
+    """Each player's current roster status (Active, Injured reserve, ...),
+    taken from the most recent week of the weekly rosters file."""
+    rosters = pd.read_csv(source, usecols=["gsis_id", "week", "status"])
+    latest = rosters.sort_values("week").drop_duplicates("gsis_id", keep="last")
+    latest["status"] = latest["status"].map(STATUS_NAMES).fillna(latest["status"])
+    return latest.rename(columns={"gsis_id": "player_id"})[["player_id", "status"]]
 
 
 # ---------- Step 2: receiving stats ----------

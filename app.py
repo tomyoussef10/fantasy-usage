@@ -61,11 +61,12 @@ def get_data():
     plays = phase1.load_plays()
     snaps = phase1.load_snaps(players=players)
     weekly = phase1.build_weekly(plays, players, snaps)
-    return plays, players, snaps, weekly
+    status = phase1.load_status()
+    return plays, players, snaps, weekly, status
 
 
 with st.spinner("Loading NFL data (about 30 seconds the first time)..."):
-    plays, players, snaps, weekly = get_data()
+    plays, players, snaps, weekly, status = get_data()
 
 
 # ---------- Part 2: filters in the sidebar (they apply to every tab) ----------
@@ -76,6 +77,8 @@ plays = plays[plays["week"].between(weeks[0], weeks[1])]
 snaps = snaps[snaps["week"].between(weeks[0], weeks[1])]
 weekly = weekly[weekly["week"].between(weeks[0], weeks[1])]
 table = phase1.build_table(plays, players, snaps)
+table = table.merge(status, on="player_id", how="left")
+table["status"] = table["status"].fillna("Unknown")
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
 if team != "All":
@@ -84,7 +87,7 @@ if team != "All":
 
 # ---------- Part 3: how columns are named and formatted ----------
 COLUMN_NAMES = {
-    "player": "Player", "team": "Team", "position": "Pos",
+    "player": "Player", "team": "Team", "position": "Pos", "status": "Status",
     "snap_share": "Snap share %", "targets": "Targets", "target_share": "Target share %",
     "first_read_share": "First-read share %", "air_yards_share": "Air yards share %",
     "adot": "aDOT", "rz_target_share": "RZ target share %",
@@ -139,8 +142,12 @@ with buy_low_tab:
              "so they're good trade targets. Players far **above** expected may be "
              "scoring on luck that won't last.")
     min_touches = st.slider("Minimum targets + carries", 0, 200, 40)
+    active_only = st.checkbox("Only show active players (hide injured reserve, released, etc.)",
+                              value=True)
     rows = table[(table["targets"] + table["carries"]) >= min_touches]
-    columns = ["player", "team", "position", "targets", "carries", "ppr_points",
+    if active_only:
+        rows = rows[rows["status"] == "Active"]
+    columns = ["player", "team", "position", "status", "targets", "carries", "ppr_points",
                "expected_points", "points_below_expected"]
     left, right = st.columns(2)
     with left:
