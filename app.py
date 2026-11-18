@@ -81,6 +81,19 @@ table = table.merge(status, on="player_id", how="left")
 table["status"] = table["status"].fillna("Unknown")
 table.loc[table["status"] == "Injured reserve", "status"] = "⚠️ Injured reserve"
 
+
+def load_out_for_season(path="out_for_season.txt"):
+    """Names from out_for_season.txt (one per line, # lines ignored)."""
+    try:
+        with open(path) as f:
+            return {line.strip() for line in f if line.strip() and not line.startswith("#")}
+    except FileNotFoundError:
+        return set()
+
+
+out_for_season = load_out_for_season()
+table.loc[table["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
+
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
 if team != "All":
     table = table[table["team"] == team]
@@ -172,7 +185,9 @@ with player_tab:
         player_weeks = weekly[weekly["full_name"] == name]
 
         current_status = player_rows["status"].iloc[0]
-        if current_status == "⚠️ Injured reserve":
+        if current_status == "❌ Out for season":
+            st.error(f"{name} has been ruled out for the season.")
+        elif current_status == "⚠️ Injured reserve":
             st.warning(f"{name} is on injured reserve. Check the news for his expected return.")
         elif current_status != "Active":
             st.warning(f"{name}'s current status: {current_status}.")

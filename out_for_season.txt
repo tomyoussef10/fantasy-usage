@@ -1,0 +1,6 @@
+# Players declared out for the season.
+# One full name per line, spelled exactly like the Player search box shows it.
+# These players are removed from the Buy low list and marked "Out for season" everywhere else.
+# Lines starting with # are ignored.
+Michael Wilson
+De'Von Achane

@@ -25,6 +25,10 @@ Built with Python, pandas, and Streamlit.
 
 The site opens with the latest NFL headlines, then has four tabs: **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
 
+## Out for the season
+
+The free data can't tell a short injured reserve stint from a season-ending injury, so `out_for_season.txt` holds a hand-kept list of players ruled out for the year. They're removed from the Buy low list and marked "Out for season" everywhere else. Add a name when the news says a player is done for the season.
+
 ## How it works
 
 - `phase1.py` loads the data and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
