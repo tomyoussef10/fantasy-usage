@@ -5,6 +5,7 @@ RSS is a free, public format that news sites use to share their latest headlines
 We show each headline with a link to the full story on the original site.
   - RotoWire: short fantasy player updates (injuries, depth charts). RotoWire offers
     this feed for personal websites to use.
+  - Pro Football Rumors: injuries, signings, trades, and depth chart moves.
   - ESPN: NFL news articles.
 """
 
@@ -17,6 +18,7 @@ EASTERN = ZoneInfo("America/New_York")
 
 FEEDS = {
     "RotoWire": "https://www.rotowire.com/rss/news.php?sport=NFL",
+    "Pro Football Rumors": "https://www.profootballrumors.com/feed",
     "ESPN": "https://www.espn.com/espn/rss/nfl/news",
 }
 

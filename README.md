@@ -19,7 +19,7 @@ Built with Python, pandas, and Streamlit.
 | Catchable / contested / drops | Targets charted as catchable, contested, or dropped |
 | Carries and rush share | Running plays and the player's share of the team's carries |
 | GL carries | Carries inside the opponent's 5-yard line |
-| PPR points | Fantasy points in PPR scoring |
+| Fantasy points | PPR, half PPR, or standard, chosen in the sidebar |
 | Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. Injured reserve players are marked with ⚠️; released, retired, and practice-squad players are left off the buy low list |
 | Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
@@ -32,7 +32,7 @@ The free data can't tell a short injured reserve stint from a season-ending inju
 ## How it works
 
 - `phase1.py` loads the data and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
-- `news.py` reads free RSS feeds: RotoWire fantasy player news and ESPN NFL headlines, each linking to the full story.
+- `news.py` reads free RSS feeds: RotoWire fantasy player news, Pro Football Rumors injuries and transactions, and ESPN NFL headlines, each linking to the full story.
 - `app.py` builds the website: sidebar filters, the three tabs, tables, and charts.
 
 Fantasy points match nflverse's official PPR totals for 99% of players.
@@ -46,4 +46,4 @@ streamlit run app.py
 
 ## Data
 
-Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). News from RotoWire and ESPN RSS feeds. Player photos and bios from nflverse weekly rosters (photos hosted by the NFL). Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
+Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). News from RotoWire, Pro Football Rumors, and ESPN RSS feeds. Player photos and bios from nflverse weekly rosters (photos hosted by the NFL). Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.

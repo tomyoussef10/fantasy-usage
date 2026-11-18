@@ -45,12 +45,13 @@ def show_news(source, show_times):
 
 
 with st.expander("Latest NFL news", expanded=True):
-    player_news, headlines_col = st.columns(2)
-    with player_news:
-        st.subheader("Player news (RotoWire)")
+    rotowire_tab, rumors_tab, espn_tab = st.tabs(
+        ["Player news (RotoWire)", "Injuries & transactions (Pro Football Rumors)", "Headlines (ESPN)"])
+    with rotowire_tab:
         show_news("RotoWire", show_times=True)
-    with headlines_col:
-        st.subheader("Headlines (ESPN)")
+    with rumors_tab:
+        show_news("Pro Football Rumors", show_times=True)
+    with espn_tab:
         show_news("ESPN", show_times=False)
     st.link_button("Breaking updates: Underdog NFL on X", "https://x.com/UnderdogNFL")
 
@@ -95,6 +96,16 @@ def load_out_for_season(path="out_for_season.txt"):
 out_for_season = load_out_for_season()
 table.loc[table["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
 
+# Scoring format: each catch is worth 1 point (PPR), 0.5 (half PPR), or 0 (standard).
+# Everything else scores the same, so we start from PPR and take off the difference.
+SCORING = {"PPR": 1.0, "Half PPR": 0.5, "Standard": 0.0}
+scoring = st.sidebar.radio("Scoring format", list(SCORING), horizontal=True)
+per_catch = SCORING[scoring]
+table["fantasy_points"] = table["ppr_points"] - (1 - per_catch) * table["receptions"]
+weekly = weekly.assign(
+    fantasy_points=weekly["ppr_points"] - (1 - per_catch) * weekly["receptions"])
+table = phase1.add_expected_points(table, "fantasy_points")
+
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
 if team != "All":
     table = table[table["team"] == team]
@@ -108,7 +119,7 @@ COLUMN_NAMES = {
     "adot": "aDOT", "rz_target_share": "RZ target share %",
     "catchable_targets": "Catchable", "contested_targets": "Contested", "drops": "Drops",
     "carries": "Carries", "rush_share": "Rush share %", "goal_line_carries": "GL carries",
-    "ppr_points": "PPR points", "expected_points": "Expected points",
+    "fantasy_points": f"{scoring} points", "expected_points": "Expected points",
     "points_below_expected": "Points below expected",
 }
 PERCENT_COLUMNS = ["snap_share", "target_share", "first_read_share", "air_yards_share",
@@ -141,14 +152,14 @@ with receivers_tab:
         rows = rows[rows["position"] == position]
     show_table(rows, ["player", "team", "position", "snap_share", "targets", "target_share",
                       "first_read_share", "air_yards_share", "adot", "rz_target_share",
-                      "catchable_targets", "contested_targets", "drops", "ppr_points"])
+                      "catchable_targets", "contested_targets", "drops", "fantasy_points"])
 
 with rbs_tab:
     min_carries = st.slider("Minimum carries", 0, 150, 20)
     rows = table[(table["position"] == "RB") & (table["carries"] >= min_carries)]
     rows = rows.sort_values("rush_share", ascending=False)
     show_table(rows, ["player", "team", "snap_share", "carries", "rush_share",
-                      "goal_line_carries", "targets", "target_share", "ppr_points"])
+                      "goal_line_carries", "targets", "target_share", "fantasy_points"])
 
 with buy_low_tab:
     st.write("**Expected points** = what a player's usage (targets, air yards, red zone "
@@ -164,7 +175,7 @@ with buy_low_tab:
     allowed = ["Active", "⚠️ Injured reserve"] if not hide_ir else ["Active"]
     rows = rows[rows["status"].isin(allowed)]
     st.caption("⚠️ = on injured reserve. Check the news for how long they're expected to be out.")
-    columns = ["player", "team", "position", "status", "targets", "carries", "ppr_points",
+    columns = ["player", "team", "position", "status", "targets", "carries", "fantasy_points",
                "expected_points", "points_below_expected"]
     left, right = st.columns(2)
     with left:
@@ -218,7 +229,7 @@ with player_tab:
 
         # Totals across the chosen weeks (added up if he played for two teams)
         totals = st.columns(5)
-        totals[0].metric("PPR points", round(player_rows["ppr_points"].sum(), 1))
+        totals[0].metric(f"{scoring} points", round(player_rows["fantasy_points"].sum(), 1))
         totals[1].metric("Targets", int(player_rows["targets"].sum()))
         totals[2].metric("Carries", int(player_rows["carries"].sum()))
         totals[3].metric("Target share", f"{player_rows['target_share'].max() * 100:.1f}%")
@@ -229,13 +240,13 @@ with player_tab:
 
         st.subheader("Week by week")
         chart_data = player_weeks.groupby("week")[
-            ["ppr_points", "targets", "carries", "target_share", "snap_share",
+            ["fantasy_points", "targets", "carries", "target_share", "snap_share",
              "first_read_share"]].sum()
         chart_data[["target_share", "snap_share", "first_read_share"]] *= 100
 
         left, right = st.columns(2)
-        left.caption("PPR points")
-        left.bar_chart(chart_data["ppr_points"])
+        left.caption(f"{scoring} points")
+        left.bar_chart(chart_data["fantasy_points"])
         right.caption("Target share %")
         right.bar_chart(chart_data["target_share"])
         left.caption("Targets and carries")

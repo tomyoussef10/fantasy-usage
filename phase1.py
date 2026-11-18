@@ -104,7 +104,8 @@ def target_share(plays):
     """Target share = player targets / team targets."""
     targets = get_targets(plays)
     per_player = (targets.groupby(["posteam", "receiver_player_id"])
-                  .size().reset_index(name="targets"))
+                  .agg(targets=("complete_pass", "size"), receptions=("complete_pass", "sum"))
+                  .reset_index())
     per_team = targets.groupby("posteam").size().rename("team_targets")
 
     table = per_player.join(per_team, on="posteam")
@@ -244,7 +245,7 @@ def fantasy_points(plays):
 USAGE_COLUMNS = ["targets", "air_yards", "rz_targets", "carries", "goal_line_carries"]
 
 
-def add_expected_points(table, min_touches=10):
+def add_expected_points(table, points_column="ppr_points", min_touches=10):
     """Expected PPR points = what a player's usage is usually worth.
 
     A linear regression (least squares) learns how many points each target,
@@ -258,9 +259,9 @@ def add_expected_points(table, min_touches=10):
         table["expected_points"] = np.nan
     else:
         values, *_ = np.linalg.lstsq(fit[USAGE_COLUMNS].to_numpy(float),
-                                     fit["ppr_points"].to_numpy(float), rcond=None)
+                                     fit[points_column].to_numpy(float), rcond=None)
         table["expected_points"] = table[USAGE_COLUMNS].to_numpy(float) @ values
-    table["points_below_expected"] = table["expected_points"] - table["ppr_points"]
+    table["points_below_expected"] = table["expected_points"] - table[points_column]
     return table
 
 
@@ -283,7 +284,7 @@ def build_table(plays, players, snaps):
         table = table.merge(stats, on=["team", "player_id"], how="left")
 
     # Players with no targets (or no carries) get 0 instead of an empty value
-    counts = ["targets", "target_share", "air_yards", "air_yards_share", "rz_targets",
+    counts = ["targets", "receptions", "target_share", "air_yards", "air_yards_share", "rz_targets",
               "rz_target_share", "first_read_targets", "first_read_share",
               "catchable_targets", "contested_targets", "drops",
               "carries", "rush_share", "goal_line_carries", "snaps", "snap_share"]
