@@ -5,11 +5,29 @@ Run with:  python3 -m streamlit run app.py
 
 import streamlit as st
 import phase1
+import news
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
 st.caption(f"{phase1.SEASON} regular season · Data: nflverse · "
            "Charting data (first reads, drops, contested and catchable balls): FTN Data via nflverse")
+
+
+# ---------- Part 0: latest NFL news at the top ----------
+@st.cache_data(ttl=60 * 15)  # check for new headlines every 15 minutes
+def get_news():
+    return news.get_headlines()
+
+
+with st.expander("Latest NFL news", expanded=True):
+    headlines = get_news()
+    if headlines:
+        for h in headlines:
+            when = h["published"].strftime("%b %d, %I:%M %p") if h["published"] else ""
+            st.markdown(f"**[{h['title']}]({h['link']})**  \n{h['source']} · {when}")
+    else:
+        st.write("News is unavailable right now. Check back soon.")
+    st.link_button("Breaking updates: Underdog NFL on X", "https://x.com/UnderdogNFL")
 
 
 # ---------- Part 1: load the data once a day, then reuse it ----------
@@ -48,7 +66,8 @@ COLUMN_NAMES = {
     "adot": "aDOT", "rz_target_share": "RZ target share %",
     "catchable_targets": "Catchable", "contested_targets": "Contested", "drops": "Drops",
     "carries": "Carries", "rush_share": "Rush share %", "goal_line_carries": "GL carries",
-    "ppr_points": "PPR points",
+    "ppr_points": "PPR points", "expected_points": "Expected points",
+    "points_below_expected": "Points below expected",
 }
 PERCENT_COLUMNS = ["snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
@@ -69,7 +88,8 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-receivers_tab, rbs_tab, player_tab = st.tabs(["Receivers", "Running backs", "Player search"])
+receivers_tab, rbs_tab, buy_low_tab, player_tab = st.tabs(
+    ["Receivers", "Running backs", "Buy low", "Player search"])
 
 with receivers_tab:
     position = st.radio("Position", ["All", "WR", "TE", "RB"], horizontal=True)
@@ -87,6 +107,24 @@ with rbs_tab:
     rows = rows.sort_values("rush_share", ascending=False)
     show_table(rows, ["player", "team", "snap_share", "carries", "rush_share",
                       "goal_line_carries", "targets", "target_share", "ppr_points"])
+
+with buy_low_tab:
+    st.write("**Expected points** = what a player's usage (targets, air yards, red zone "
+             "targets, carries, goal-line carries) is usually worth across the league. "
+             "Players far **below** expected are getting the work but not the points yet, "
+             "so they're good trade targets. Players far **above** expected may be "
+             "scoring on luck that won't last.")
+    min_touches = st.slider("Minimum targets + carries", 0, 200, 40)
+    rows = table[(table["targets"] + table["carries"]) >= min_touches]
+    columns = ["player", "team", "position", "targets", "carries", "ppr_points",
+               "expected_points", "points_below_expected"]
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Buy low")
+        show_table(rows.sort_values("points_below_expected", ascending=False).head(15), columns)
+    with right:
+        st.subheader("Sell high")
+        show_table(rows.sort_values("points_below_expected").head(15), columns)
 
 with player_tab:
     names = sorted(table["full_name"].dropna().unique())

@@ -14,6 +14,7 @@ Charting data (first reads, drops, contested and catchable balls): FTN Data via 
 CC-BY-SA 4.0.
 """
 
+import numpy as np
 import pandas as pd
 
 SEASON = 2026
@@ -220,7 +221,32 @@ def fantasy_points(plays):
     return points.rename("ppr_points").reset_index()
 
 
-# ---------- Step 6: put it together ----------
+# ---------- Step 6: expected points (for the buy low list) ----------
+
+USAGE_COLUMNS = ["targets", "air_yards", "rz_targets", "carries", "goal_line_carries"]
+
+
+def add_expected_points(table, min_touches=10):
+    """Expected PPR points = what a player's usage is usually worth.
+
+    A linear regression (least squares) learns how many points each target,
+    air yard, red zone target, carry, and goal-line carry is worth on average
+    across the league. Multiplying a player's usage by those values gives his
+    expected points. Points below expected = expected - actual: a positive number
+    means he scored less than his usage suggests (a "buy low")."""
+    table = table.copy()
+    fit = table[(table["targets"] + table["carries"]) >= min_touches]
+    if len(fit) < len(USAGE_COLUMNS):
+        table["expected_points"] = np.nan
+    else:
+        values, *_ = np.linalg.lstsq(fit[USAGE_COLUMNS].to_numpy(float),
+                                     fit["ppr_points"].to_numpy(float), rcond=None)
+        table["expected_points"] = table[USAGE_COLUMNS].to_numpy(float) @ values
+    table["points_below_expected"] = table["expected_points"] - table["ppr_points"]
+    return table
+
+
+# ---------- Step 7: put it together ----------
 
 def build_table(plays, players, snaps):
     """One row per player per team, with every stat."""
@@ -248,6 +274,7 @@ def build_table(plays, players, snaps):
 
     table = table.merge(fantasy_points(plays), on=["team", "player_id"], how="left")
     table["ppr_points"] = table["ppr_points"].fillna(0)
+    table = add_expected_points(table)
     return table.sort_values("target_share", ascending=False)
 
 

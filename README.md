@@ -20,12 +20,14 @@ Built with Python, pandas, and Streamlit.
 | Carries and rush share | Running plays and the player's share of the team's carries |
 | GL carries | Carries inside the opponent's 5-yard line |
 | PPR points | Fantasy points in PPR scoring |
+| Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
-The site has three tabs: **Receivers**, **Running backs**, and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
+The site opens with the latest NFL headlines, then has four tabs: **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
 
 ## How it works
 
 - `phase1.py` loads the data and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
+- `news.py` reads the latest NFL headlines from ESPN's free RSS feed and links to the full stories.
 - `app.py` builds the website: sidebar filters, the three tabs, tables, and charts.
 
 Fantasy points match nflverse's official PPR totals for 99% of players.
