@@ -11,6 +11,9 @@ We show each headline with a link to the full story on the original site.
 import urllib.request
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
+from zoneinfo import ZoneInfo
+
+EASTERN = ZoneInfo("America/New_York")
 
 FEEDS = {
     "RotoWire": "https://www.rotowire.com/rss/news.php?sport=NFL",
@@ -38,6 +41,9 @@ def get_headlines(source, limit=8):
             published = parsedate_to_datetime(date_text) if date_text else None
         except (TypeError, ValueError):
             published = None
+        # Feeds use different time zones; convert to Eastern so times match the viewer's
+        if published is not None and published.tzinfo is not None:
+            published = published.astimezone(EASTERN)
         if title and link:
             headlines.append({"title": title, "link": link, "published": published})
     return headlines[:limit]

@@ -28,11 +28,11 @@ def show_news(source, show_times):
         return
     times = [h["published"] for h in headlines if h["published"]]
     if times and not show_times:
-        st.caption(f"Updated {max(times).strftime('%b %d, %I:%M %p')}")
+        st.caption(f"Updated {max(times).strftime('%b %d, %-I:%M %p')} ET")
     for h in headlines:
         line = f"**[{h['title']}]({h['link']})**"
         if show_times and h["published"]:
-            line += f"  \n{h['published'].strftime('%b %d, %I:%M %p')}"
+            line += f"  \n{h['published'].strftime('%b %d, %-I:%M %p')} ET"
         st.markdown(line)
 
 
