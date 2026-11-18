@@ -23,7 +23,7 @@ Built with Python, pandas, and Streamlit.
 | Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. Injured reserve players are marked with ⚠️; released, retired, and practice-squad players are left off the buy low list |
 | Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
-The site opens with the latest NFL headlines, then has tabs for **Projections**, **My league** (sync a Sleeper or public ESPN league to see your roster, the best waiver pickups by usage, and buy-low trade targets, plus power rankings by this week's projections, rest of season, or season so far, with grades by position and starter slot), **Quarterbacks**, **Receivers**, **Kickers** (field goals by distance, accuracy, long, extra points), **Defenses** (sacks, sack rate, takeaways, D/ST TDs, points and yards allowed per game), **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Pick the season (2026 or 2025), week range, team, and scoring in the sidebar.
+The site opens with the latest NFL headlines, then has tabs for **Projections**, **Trending** (whose usage is rising or falling over the last 3 games), **My league** (sync a Sleeper or public ESPN league to see your roster, the best waiver pickups by usage, and buy-low trade targets, plus power rankings by this week's projections, rest of season, or season so far, with grades by position and starter slot), **Quarterbacks**, **Receivers**, **Kickers** (field goals by distance, accuracy, long, extra points), **Defenses** (sacks, sack rate, takeaways, D/ST TDs, points and yards allowed per game), **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Pick the season (2026 or 2025), week range, team, and scoring in the sidebar.
 
 ## Projections
 
@@ -37,6 +37,10 @@ projection = form (last 4 games weighted over the season; half actual points, ha
 Backtest on 2026 weeks 5-10 (projecting each week with only earlier games): average miss 5.83 points per player with zero bias, vs. 6.03 (and +0.72 bias, too high) for a simple season average.
 
 Shadow coverage comes from `shadow_matchups.txt` (one `Receiver, Cornerback` per line, kept by hand from the news each week); a shadowed receiver keeps 85% of his projection.
+
+## Trending
+
+The **Trending** tab compares each RB, WR, and TE's last 3 games with his earlier games (snap share, target share, carries, points) and ranks players by the change in expected points per game, so a growing role shows up before the points do.
 
 ## Out this week
 

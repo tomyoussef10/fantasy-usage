@@ -172,6 +172,11 @@ if has_projections:
     week_proj["injury"] = week_proj["injury"].replace(
         {"Out": "🚫 Out", "Doubtful": "🚫 Doubtful", "Questionable": "❓ Questionable"})
     week_proj = week_proj.drop(columns="status")
+
+    # Trending: last 3 games vs. earlier games (receivers and running backs)
+    trending = projections.trends(weekly_all[weekly_all["position"] != "QB"], full_table,
+                                  "fantasy_points")
+    trending = trending.merge(status[["player_id", "status"]], on="player_id", how="left")
 table = phase1.add_expected_points(table, "fantasy_points")
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
@@ -200,9 +205,15 @@ COLUMN_NAMES = {
     "points_allowed_per_game": "Points allowed/game", "yards_allowed_per_game": "Yards allowed/game",
     "dst_points": "Fantasy points",
     "opponent": "Opp", "matchup_label": "Matchup", "implied": "Team implied pts",
-    "shadow": "Shadowed by", "injury": "Injury", "projection": "Projected pts", "ros_points": "Rest of season pts",
+    "shadow": "Shadowed by", "injury": "Injury",
+    "snap_share_earlier": "Snap % before", "snap_share_recent": "Snap % last 3",
+    "target_share_earlier": "Target % before", "target_share_recent": "Target % last 3",
+    "carries_earlier": "Carries/g before", "carries_recent": "Carries/g last 3",
+    "points_earlier": "Pts/g before", "points_recent": "Pts/g last 3",
+    "trend": "Usage change (exp. pts/g)", "projection": "Projected pts", "ros_points": "Rest of season pts",
 }
-PERCENT_COLUMNS = ["fg_pct", "sack_rate", "snap_share", "target_share", "first_read_share", "air_yards_share",
+PERCENT_COLUMNS = ["snap_share_earlier", "snap_share_recent", "target_share_earlier",
+                   "target_share_recent", "fg_pct", "sack_rate", "snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
 COUNT_COLUMNS = ["games", "fg_made", "fg_attempts", "fg_0_39", "fg_40_49", "fg_50_plus",
                  "fg_50_attempts", "xp_made", "xp_attempts", "sacks", "fumbles_recovered",
@@ -224,9 +235,32 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-(proj_tab, qbs_tab, receivers_tab, rbs_tab, k_tab, dst_tab, buy_low_tab, league_tab,
- player_tab) = st.tabs(["Projections", "Quarterbacks", "Receivers", "Running backs", "Kickers",
-                        "Defenses", "Buy low", "My league", "Player search"])
+(proj_tab, trend_tab, qbs_tab, receivers_tab, rbs_tab, k_tab, dst_tab, buy_low_tab, league_tab,
+ player_tab) = st.tabs(["Projections", "Trending", "Quarterbacks", "Receivers", "Running backs",
+                        "Kickers", "Defenses", "Buy low", "My league", "Player search"])
+
+with trend_tab:
+    if not has_projections:
+        st.info("Pick the current season in the sidebar to see who's trending.")
+    else:
+        st.caption("Each player's **last 3 games** compared with his **earlier games**. Players "
+                   "are ranked by the change in expected points per game (their usage: targets, "
+                   "air yards, red zone looks, carries), because a bigger role usually shows up "
+                   "before the points do. Needs at least 6 games.")
+        trend_pos = st.radio("Position", ["All", "RB", "WR", "TE"], horizontal=True,
+                             key="trend_pos")
+        rows = trending[trending["status"] == "Active"]
+        if trend_pos != "All":
+            rows = rows[rows["position"] == trend_pos]
+        if team != "All":
+            rows = rows[rows["team"] == team]
+        columns = ["player", "team", "position", "snap_share_earlier", "snap_share_recent",
+                   "target_share_earlier", "target_share_recent", "carries_earlier",
+                   "carries_recent", "points_earlier", "points_recent", "trend"]
+        st.subheader("📈 Trending up")
+        show_table(rows.sort_values("trend", ascending=False).head(15), columns)
+        st.subheader("📉 Trending down")
+        show_table(rows.sort_values("trend").head(15), columns)
 
 with proj_tab:
     if not has_projections:

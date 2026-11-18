@@ -158,3 +158,31 @@ def rest_of_season(weekly, season_table, schedule, plays, points_column, first_w
     totals = remaining.groupby("player_id").agg(ros_points=("points", "sum"),
                                                 ros_games=("week", "nunique"))
     return totals.reset_index()
+
+
+def trends(weekly, season_table, points_column, recent_games=3, min_earlier_games=3):
+    """Compare each player's last few games with his earlier games.
+    Positive change in expected points per game = his role is growing (trending up)."""
+    weekly = add_weekly_expected(weekly, season_table, points_column)
+    games = weekly.groupby(["player_id", "week"], as_index=False).agg(
+        player=("player", "first"), full_name=("full_name", "first"),
+        position=("position", "first"), team=("team", "last"),
+        snap_share=("snap_share", "max"), target_share=("target_share", "max"),
+        carries=("carries", "sum"), expected=("expected", "sum"),
+        points=(points_column, "sum")).sort_values("week")
+
+    rows = []
+    for player_id, g in games.groupby("player_id"):
+        if len(g) < recent_games + min_earlier_games:
+            continue
+        recent, earlier = g.tail(recent_games), g.iloc[:-recent_games]
+        row = {"player_id": player_id, "player": g["player"].iloc[0],
+               "full_name": g["full_name"].iloc[0], "position": g["position"].iloc[0],
+               "team": g["team"].iloc[-1]}
+        for col in ["snap_share", "target_share", "carries", "expected", "points"]:
+            row[f"{col}_recent"] = recent[col].mean()
+            row[f"{col}_earlier"] = earlier[col].mean()
+        rows.append(row)
+    table = pd.DataFrame(rows)
+    table["trend"] = table["expected_recent"] - table["expected_earlier"]
+    return table
