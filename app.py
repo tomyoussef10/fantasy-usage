@@ -12,7 +12,7 @@ st.caption(f"{phase1.SEASON} regular season · Data: nflverse")
 
 
 # Part 1: load the data once, then reuse it
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 24)
 def get_table():
     plays = phase1.load_plays()
     positions = phase1.load_positions()
