@@ -60,7 +60,7 @@ with st.expander("Latest NFL news", expanded=True):
 # ---------- Part 1: load the data once a day, then reuse it ----------
 # max_entries=1: keep only one season in memory at a time, so the free server doesn't run out
 @st.cache_data(ttl=60 * 60 * 24, max_entries=1)  # refresh once a day
-def get_data(season):
+def get_data(season, data_version):
     players = phase1.load_players()
     plays = phase1.load_plays(season)
     snaps = phase1.load_snaps(players, season)
@@ -72,7 +72,7 @@ def get_data(season):
 st.sidebar.header("Filters")
 season = st.sidebar.selectbox("Season", phase1.SEASONS)
 with st.spinner(f"Loading {season} NFL data (about 30 seconds the first time)..."):
-    plays, players, snaps, weekly, status = get_data(season)
+    plays, players, snaps, weekly, status = get_data(season, phase1.DATA_VERSION)
 
 
 # ---------- Part 2: filters in the sidebar (they apply to every tab) ----------
@@ -250,6 +250,9 @@ with league_tab:
 
     if rosters is not None:
         id_column = "sleeper_id" if platform == "Sleeper" else "espn_id"
+        if id_column not in table.columns:
+            st.error("The site is still loading updated player data. Refresh in a minute.")
+            st.stop()
         # Match each rostered player to our stats using the fantasy site's player ID
         league_table = table.merge(rosters, on=id_column, how="left")
         my_team = st.selectbox("Your team", sorted(rosters["fantasy_team"].unique()))

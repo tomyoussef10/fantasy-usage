@@ -17,6 +17,10 @@ CC-BY-SA 4.0.
 import numpy as np
 import pandas as pd
 
+# Bump this number whenever the loaded data gets new columns. The website includes it in
+# its cache key, so old saved data is thrown away automatically after an update.
+DATA_VERSION = 2
+
 SEASON = 2026                       # the current season (the site's default)
 SEASONS = [2026, 2025]              # seasons visitors can pick
 BASE_URL = "https://github.com/nflverse/nflverse-data/releases/download"
