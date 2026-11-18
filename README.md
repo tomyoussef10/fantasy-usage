@@ -19,11 +19,11 @@ Built with Python, pandas, and Streamlit.
 | Catchable / contested / drops | Targets charted as catchable, contested, or dropped |
 | Carries and rush share | Running plays and the player's share of the team's carries |
 | GL carries | Carries inside the opponent's 5-yard line |
-| Fantasy points | PPR, half PPR, or standard, chosen in the sidebar |
+| Fantasy points | Start from PPR, half PPR, or standard, then customize every point value (passing TDs, yards, turnovers, ...) in the sidebar |
 | Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. Injured reserve players are marked with ⚠️; released, retired, and practice-squad players are left off the buy low list |
 | Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
-The site opens with the latest NFL headlines, then has four tabs: **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
+The site opens with the latest NFL headlines, then has five tabs: **Quarterbacks**, **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
 
 ## Out for the season
 

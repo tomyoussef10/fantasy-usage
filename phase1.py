@@ -203,13 +203,20 @@ def snap_share(snaps):
     return table
 
 
-# ---------- Step 5: PPR fantasy points ----------
+# ---------- Step 5: fantasy points ----------
 
-def fantasy_points(plays):
-    """PPR scoring: 1 per catch, 0.1 per rush/receiving yard, 0.04 per passing yard,
-    6 per rush/receiving/return TD, 4 per passing TD, 2 per two-point conversion,
-    -2 per interception or lost fumble.
-    Points are counted per team, so a player traded mid-season gets a separate row for each team."""
+# Point values for each scoring stat. PPR is the default; the website lets visitors change them.
+PPR_SCORING = {
+    "catches": 1.0, "receiving_yards": 0.1, "rushing_yards": 0.1, "passing_yards": 0.04,
+    "passing_tds": 4.0, "rush_rec_tds": 6.0, "interceptions": -2.0, "fumbles_lost": -2.0,
+    "two_point_conversions": 2.0,
+}
+SCORING_STATS = list(PPR_SCORING)
+
+
+def scoring_stats(plays):
+    """Each player's raw scoring stats per team (catches, yards, TDs, turnovers, 2-pt).
+    Points are then worked out from these with any scoring settings (see score())."""
     def total(id_col, value_col, rows=plays):
         return rows.groupby(["posteam", id_col])[value_col].sum().rename_axis(["team", "player_id"])
 
@@ -220,24 +227,28 @@ def fantasy_points(plays):
     two_pt = plays[plays["two_point_conv_result"] == "success"].assign(made=1)
     offense = plays[plays["play_type"].isin(["pass", "run", "qb_kneel", "qb_spike"])]
 
-    points = pd.concat([
-        total("receiver_player_id", "complete_pass") * 1,            # catches
-        total("receiver_player_id", "receiving_yards") * 0.1,
-        total("lateral_receiver_player_id", "lateral_receiving_yards") * 0.1,
-        total("rusher_player_id", "rushing_yards") * 0.1,
-        total("lateral_rusher_player_id", "lateral_rushing_yards") * 0.1,
-        total("passer_player_id", "passing_yards") * 0.04,
-        total("passer_player_id", "pass_touchdown") * 4,
-        total("passer_player_id", "interception") * -2,
-        scoring.groupby(["posteam", "td_player_id"]).size().rename_axis(["team", "player_id"]) * 6,
-        total("passer_player_id", "made", two_pt) * 2,
-        total("receiver_player_id", "made", two_pt) * 2,
-        total("rusher_player_id", "made", two_pt) * 2,
-        total("fumbled_1_player_id", "fumble_lost", offense) * -2,  # not on kicks/punts
-    ], axis=1).fillna(0)
+    stats = pd.concat({
+        "catches": total("receiver_player_id", "complete_pass"),
+        "receiving_yards": total("receiver_player_id", "receiving_yards").add(
+            total("lateral_receiver_player_id", "lateral_receiving_yards"), fill_value=0),
+        "rushing_yards": total("rusher_player_id", "rushing_yards").add(
+            total("lateral_rusher_player_id", "lateral_rushing_yards"), fill_value=0),
+        "passing_yards": total("passer_player_id", "passing_yards"),
+        "passing_tds": total("passer_player_id", "pass_touchdown"),
+        "rush_rec_tds": scoring.groupby(["posteam", "td_player_id"]).size()
+                               .rename_axis(["team", "player_id"]),
+        "interceptions": total("passer_player_id", "interception"),
+        "fumbles_lost": total("fumbled_1_player_id", "fumble_lost", offense),  # not on kicks/punts
+        "two_point_conversions": total("passer_player_id", "made", two_pt).add(
+            total("receiver_player_id", "made", two_pt), fill_value=0).add(
+            total("rusher_player_id", "made", two_pt), fill_value=0),
+    }, axis=1).fillna(0)
+    return stats.reset_index()
 
-    points = points.sum(axis=1)
-    return points.rename("ppr_points").reset_index()
+
+def score(table, settings=PPR_SCORING):
+    """Fantasy points = each scoring stat times its point value, added up."""
+    return sum(table[stat] * value for stat, value in settings.items())
 
 
 # ---------- Step 6: expected points (for the buy low list) ----------
@@ -254,13 +265,16 @@ def add_expected_points(table, points_column="ppr_points", min_touches=10):
     expected points. Points below expected = expected - actual: a positive number
     means he scored less than his usage suggests (a "buy low")."""
     table = table.copy()
-    fit = table[(table["targets"] + table["carries"]) >= min_touches]
+    # QBs score mostly from passing, which these usage columns don't measure, so they're left out
+    skill = table["position"] != "QB"
+    fit = table[skill & ((table["targets"] + table["carries"]) >= min_touches)]
     if len(fit) < len(USAGE_COLUMNS):
         table["expected_points"] = np.nan
     else:
         values, *_ = np.linalg.lstsq(fit[USAGE_COLUMNS].to_numpy(float),
                                      fit[points_column].to_numpy(float), rcond=None)
         table["expected_points"] = table[USAGE_COLUMNS].to_numpy(float) @ values
+        table.loc[~skill, "expected_points"] = np.nan
     table["points_below_expected"] = table["expected_points"] - table[points_column]
     return table
 
@@ -273,11 +287,13 @@ def build_table(plays, players, snaps):
     rushing = rushing_share(plays)
 
     # Start with everyone who had a target or a carry
-    table = pd.concat([receiving[["team", "player_id"]], rushing[["team", "player_id"]]])
+    passers = (plays[plays["passer_player_id"].notna()][["posteam", "passer_player_id"]]
+               .rename(columns={"posteam": "team", "passer_player_id": "player_id"}))
+    table = pd.concat([receiving[["team", "player_id"]], rushing[["team", "player_id"]], passers])
     table = table.drop_duplicates()
     table = table.merge(players[["player_id", "player", "full_name", "position"]],
                         on="player_id", how="left")
-    table = table[table["position"].isin(["WR", "TE", "RB"])]
+    table = table[table["position"].isin(["QB", "WR", "TE", "RB"])]
 
     for stats in [receiving, air_yards_share(plays), red_zone_share(plays),
                   first_read_share(plays), ball_quality(plays), rushing, snap_share(snaps)]:
@@ -291,8 +307,9 @@ def build_table(plays, players, snaps):
     table[counts] = table[counts].fillna(0)
     table["adot"] = table["air_yards"] / table["targets"].where(table["targets"] > 0)
 
-    table = table.merge(fantasy_points(plays), on=["team", "player_id"], how="left")
-    table["ppr_points"] = table["ppr_points"].fillna(0)
+    table = table.merge(scoring_stats(plays), on=["team", "player_id"], how="left")
+    table[SCORING_STATS] = table[SCORING_STATS].fillna(0)
+    table["ppr_points"] = score(table)
     table = add_expected_points(table)
     return table.sort_values("target_share", ascending=False)
 

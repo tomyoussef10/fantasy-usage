@@ -96,14 +96,28 @@ def load_out_for_season(path="out_for_season.txt"):
 out_for_season = load_out_for_season()
 table.loc[table["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
 
-# Scoring format: each catch is worth 1 point (PPR), 0.5 (half PPR), or 0 (standard).
-# Everything else scores the same, so we start from PPR and take off the difference.
-SCORING = {"PPR": 1.0, "Half PPR": 0.5, "Standard": 0.0}
-scoring = st.sidebar.radio("Scoring format", list(SCORING), horizontal=True)
-per_catch = SCORING[scoring]
-table["fantasy_points"] = table["ppr_points"] - (1 - per_catch) * table["receptions"]
-weekly = weekly.assign(
-    fantasy_points=weekly["ppr_points"] - (1 - per_catch) * weekly["receptions"])
+# Scoring: pick a preset, then change any value under "Customize scoring"
+PRESETS = {"PPR": 1.0, "Half PPR": 0.5, "Standard": 0.0}   # points per catch
+scoring = st.sidebar.radio("Scoring format", list(PRESETS), horizontal=True)
+LABELS = {
+    "catches": "Per catch", "receiving_yards": "Per receiving yard",
+    "rushing_yards": "Per rushing yard", "passing_yards": "Per passing yard",
+    "passing_tds": "Passing TD", "rush_rec_tds": "Rushing/receiving TD",
+    "interceptions": "Interception thrown", "fumbles_lost": "Fumble lost",
+    "two_point_conversions": "Two-point conversion",
+}
+settings = dict(phase1.PPR_SCORING, catches=PRESETS[scoring])
+with st.sidebar.expander("Customize scoring"):
+    for stat, label in LABELS.items():
+        # The key includes the preset, so switching presets resets these boxes
+        settings[stat] = st.number_input(label, value=settings[stat], step=0.5 if
+                                         abs(settings[stat]) >= 1 else 0.01,
+                                         key=f"{scoring}_{stat}")
+if settings != dict(phase1.PPR_SCORING, catches=PRESETS[scoring]):
+    scoring = "Custom"
+
+table["fantasy_points"] = phase1.score(table, settings)
+weekly = weekly.assign(fantasy_points=phase1.score(weekly, settings))
 table = phase1.add_expected_points(table, "fantasy_points")
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
@@ -119,12 +133,15 @@ COLUMN_NAMES = {
     "adot": "aDOT", "rz_target_share": "RZ target share %",
     "catchable_targets": "Catchable", "contested_targets": "Contested", "drops": "Drops",
     "carries": "Carries", "rush_share": "Rush share %", "goal_line_carries": "GL carries",
+    "passing_yards": "Pass yds", "passing_tds": "Pass TD", "interceptions": "INT",
+    "rushing_yards": "Rush yds", "rush_rec_tds": "Rush/rec TD",
     "fantasy_points": f"{scoring} points", "expected_points": "Expected points",
     "points_below_expected": "Points below expected",
 }
 PERCENT_COLUMNS = ["snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
-COUNT_COLUMNS = ["targets", "catchable_targets", "contested_targets", "drops",
+COUNT_COLUMNS = ["passing_yards", "passing_tds", "interceptions", "rushing_yards",
+                 "rush_rec_tds", "targets", "catchable_targets", "contested_targets", "drops",
                  "carries", "goal_line_carries"]
 
 
@@ -141,13 +158,20 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-receivers_tab, rbs_tab, buy_low_tab, player_tab = st.tabs(
-    ["Receivers", "Running backs", "Buy low", "Player search"])
+qbs_tab, receivers_tab, rbs_tab, buy_low_tab, player_tab = st.tabs(
+    ["Quarterbacks", "Receivers", "Running backs", "Buy low", "Player search"])
+
+with qbs_tab:
+    min_pass_yards = st.slider("Minimum passing yards", 0, 3000, 500)
+    rows = table[(table["position"] == "QB") & (table["passing_yards"] >= min_pass_yards)]
+    rows = rows.sort_values("fantasy_points", ascending=False)
+    show_table(rows, ["player", "team", "status", "passing_yards", "passing_tds", "interceptions",
+                      "carries", "rushing_yards", "rush_rec_tds", "fantasy_points"])
 
 with receivers_tab:
     position = st.radio("Position", ["All", "WR", "TE", "RB"], horizontal=True)
     min_targets = st.slider("Minimum targets", 0, 100, 20)
-    rows = table[table["targets"] >= min_targets]
+    rows = table[(table["position"] != "QB") & (table["targets"] >= min_targets)]
     if position != "All":
         rows = rows[rows["position"] == position]
     show_table(rows, ["player", "team", "position", "snap_share", "targets", "target_share",
@@ -169,7 +193,8 @@ with buy_low_tab:
              "scoring on luck that won't last.")
     min_touches = st.slider("Minimum targets + carries", 0, 200, 40)
     hide_ir = st.checkbox("Hide players on injured reserve", value=False)
-    rows = table[(table["targets"] + table["carries"]) >= min_touches]
+    rows = table[(table["position"] != "QB") &
+                 ((table["targets"] + table["carries"]) >= min_touches)]
     # Released, retired, and practice-squad players can't help a fantasy team, so they're
     # always hidden. Injured reserve players can come back, so they're shown with a warning.
     allowed = ["Active", "⚠️ Injured reserve"] if not hide_ir else ["Active"]
