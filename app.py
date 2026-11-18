@@ -11,19 +11,22 @@ st.title("Fantasy Usage Stats")
 st.caption(f"{phase1.SEASON} regular season · Data: nflverse")
 
 
-# Part 1: load the data once, then reuse it
-@st.cache_data(ttl=60 * 60 * 24)
-def get_table():
-    plays = phase1.load_plays()
-    positions = phase1.load_positions()
-    return phase1.build_table(plays, positions)
+# Part 1: load the raw data once a day, then reuse it
+@st.cache_data(ttl=60 * 60 * 24)  # refresh once a day
+def get_data():
+    return phase1.load_plays(), phase1.load_positions()
 
 
 with st.spinner("Loading play-by-play data (about 30 seconds the first time)..."):
-    table = get_table()
+    plays, positions = get_data()
 
 
-# Part 2: a filter the visitor can change
+# Part 2: filters the visitor can change
+first, last = int(plays["week"].min()), int(plays["week"].max())
+weeks = st.slider("Weeks", first, last, (first, last))
+plays = plays[plays["week"].between(weeks[0], weeks[1])]
+table = phase1.build_table(plays, positions)
+
 position = st.selectbox("Position", ["All", "WR", "TE", "RB"])
 if position != "All":
     table = table[table["position"] == position]
@@ -31,6 +34,7 @@ if position != "All":
 team = st.selectbox("Team", ["All"] + sorted(table["team"].unique()))
 if team != "All":
     table = table[table["team"] == team]
+
 min_targets = st.slider("Minimum targets", 0, 100, 20)
 table = table[table["targets"] >= min_targets]
 
