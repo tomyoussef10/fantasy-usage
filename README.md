@@ -10,18 +10,23 @@ Built with Python, pandas, and Streamlit.
 
 | Stat | What it means |
 | --- | --- |
+| Snap share | Share of the team's offensive snaps the player was on the field for |
 | Target share | Share of the team's targets thrown to the player |
+| First-read share | Share of the team's first-read targets: throws to the first receiver the QB looked at |
 | Air yards share | Share of the team's downfield passing yards aimed at the player |
 | aDOT | Average depth of target: how far downfield the player is usually targeted |
-| RZ target share | Share of the team's targets inside the opponent's 20-yard line, where most touchdowns happen |
+| RZ target share | Share of the team's targets inside the opponent's 20-yard line |
+| Catchable / contested / drops | Targets charted as catchable, contested, or dropped |
+| Carries and rush share | Running plays and the player's share of the team's carries |
+| GL carries | Carries inside the opponent's 5-yard line |
 | PPR points | Fantasy points in PPR scoring |
 
-Filter by position, team, and minimum targets, and sort any column.
+The site has three tabs: **Receivers**, **Running backs**, and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.
 
 ## How it works
 
-- `phase1.py` loads every play of the season and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
-- `app.py` builds the website: filters, the stats table, and formatting.
+- `phase1.py` loads the data and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
+- `app.py` builds the website: sidebar filters, the three tabs, tables, and charts.
 
 Fantasy points match nflverse's official PPR totals for 99% of players.
 
@@ -34,4 +39,4 @@ streamlit run app.py
 
 ## Data
 
-Play-by-play data from [nflverse](https://github.com/nflverse/nflverse-data).
+Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
