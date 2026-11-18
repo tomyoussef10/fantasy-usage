@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 import phase1
 import news
+import leagues
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
@@ -137,7 +138,7 @@ COLUMN_NAMES = {
     "carries": "Carries", "rush_share": "Rush share %", "goal_line_carries": "GL carries",
     "passing_yards": "Pass yds", "passing_tds": "Pass TD", "interceptions": "INT",
     "rushing_yards": "Rush yds", "rush_rec_tds": "Rush/rec TD",
-    "fantasy_points": f"{scoring} points", "expected_points": "Expected points",
+    "fantasy_points": f"{scoring} points", "fantasy_team": "Fantasy team", "expected_points": "Expected points",
     "points_below_expected": "Points below expected",
 }
 PERCENT_COLUMNS = ["snap_share", "target_share", "first_read_share", "air_yards_share",
@@ -160,8 +161,8 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-qbs_tab, receivers_tab, rbs_tab, buy_low_tab, player_tab = st.tabs(
-    ["Quarterbacks", "Receivers", "Running backs", "Buy low", "Player search"])
+qbs_tab, receivers_tab, rbs_tab, buy_low_tab, league_tab, player_tab = st.tabs(
+    ["Quarterbacks", "Receivers", "Running backs", "Buy low", "My league", "Player search"])
 
 with qbs_tab:
     min_pass_yards = st.slider("Minimum passing yards", 0, 3000, 500)
@@ -211,6 +212,70 @@ with buy_low_tab:
     with right:
         st.subheader("Sell high")
         show_table(rows.sort_values("points_below_expected").head(15), columns)
+
+@st.cache_data(ttl=60 * 10)
+def get_sleeper_leagues(username, season):
+    return leagues.sleeper_leagues(username, season)
+
+
+@st.cache_data(ttl=60 * 10)
+def get_league_rosters(platform, league_id, season):
+    if platform == "Sleeper":
+        return leagues.sleeper_rosters(league_id)
+    return leagues.espn_rosters(league_id, season)
+
+
+with league_tab:
+    platform = st.radio("Platform", ["Sleeper", "ESPN"], horizontal=True)
+    rosters = None
+    try:
+        if platform == "Sleeper":
+            username = st.text_input("Sleeper username")
+            if username:
+                user_leagues = get_sleeper_leagues(username, season)
+                if not user_leagues:
+                    st.info(f"No {season} leagues found for {username}.")
+                else:
+                    league_name = st.selectbox("League", list(user_leagues))
+                    rosters = get_league_rosters("Sleeper", user_leagues[league_name], season)
+        else:
+            st.caption("Only **public** ESPN leagues can be synced. Your league ID is the number "
+                       "after leagueId= in your ESPN league's web address.")
+            league_id = st.text_input("ESPN league ID")
+            if league_id:
+                rosters = get_league_rosters("ESPN", league_id, season)
+    except leagues.LeagueError as problem:
+        st.error(str(problem))
+    st.caption("Yahoo and NFL.com aren't supported yet.")
+
+    if rosters is not None:
+        id_column = "sleeper_id" if platform == "Sleeper" else "espn_id"
+        # Match each rostered player to our stats using the fantasy site's player ID
+        league_table = table.merge(rosters, on=id_column, how="left")
+        my_team = st.selectbox("Your team", sorted(rosters["fantasy_team"].unique()))
+        st.caption("Tip: set the Weeks filter to the last 3 or 4 weeks to see who's trending.")
+
+        columns = ["player", "team", "position", "status", "snap_share", "target_share",
+                   "carries", "fantasy_points", "expected_points"]
+        st.subheader("Your roster")
+        mine = league_table[league_table["fantasy_team"] == my_team]
+        show_table(mine.sort_values("fantasy_points", ascending=False), columns)
+
+        available = league_table[league_table["fantasy_team"].isna() &
+                                 (league_table["position"] != "QB") &
+                                 (league_table["status"] == "Active")]
+        st.subheader("Waiver wire: best available by usage")
+        st.caption("Unrostered players ranked by expected points: the work they're getting, "
+                   "not the points they've scored.")
+        show_table(available.sort_values("expected_points", ascending=False).head(15), columns)
+
+        others = league_table[league_table["fantasy_team"].notna() &
+                              (league_table["fantasy_team"] != my_team) &
+                              (league_table["position"] != "QB") &
+                              (league_table["status"] == "Active")]
+        st.subheader("Trade targets: buy low on other teams")
+        show_table(others.sort_values("points_below_expected", ascending=False).head(15),
+                   ["fantasy_team"] + columns + ["points_below_expected"])
 
 with player_tab:
     names = sorted(table["full_name"].dropna().unique())

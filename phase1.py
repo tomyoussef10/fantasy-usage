@@ -96,10 +96,13 @@ def load_status(season=SEASON):
     rosters = pd.read_csv(data_url("rosters", season),
                           usecols=["gsis_id", "week", "game_type", "status", "jersey_number",
                                    "height", "weight", "college", "years_exp",
-                                   "birth_date", "headshot_url"])
+                                   "birth_date", "headshot_url", "sleeper_id", "espn_id"])
     rosters = rosters[rosters["game_type"] == "REG"].drop(columns="game_type")
     latest = rosters.sort_values("week").drop_duplicates("gsis_id", keep="last")
     latest["status"] = latest["status"].map(STATUS_NAMES).fillna(latest["status"])
+    # Fantasy-site player IDs as text (like "4035"), used to match league rosters
+    for col in ["sleeper_id", "espn_id"]:
+        latest[col] = latest[col].astype("Int64").astype(str).replace("<NA>", None)
     return latest.rename(columns={"gsis_id": "player_id"}).drop(columns="week")
 
 
