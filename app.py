@@ -112,8 +112,9 @@ with player_tab:
 
         st.subheader("Week by week")
         chart_data = player_weeks.groupby("week")[
-            ["ppr_points", "targets", "carries", "target_share", "snap_share"]].sum()
-        chart_data[["target_share", "snap_share"]] *= 100
+            ["ppr_points", "targets", "carries", "target_share", "snap_share",
+             "first_read_share"]].sum()
+        chart_data[["target_share", "snap_share", "first_read_share"]] *= 100
 
         left, right = st.columns(2)
         left.caption("PPR points")
@@ -124,3 +125,5 @@ with player_tab:
         left.bar_chart(chart_data[["targets", "carries"]])
         right.caption("Snap share %")
         right.bar_chart(chart_data["snap_share"])
+        left.caption("First-read share %")
+        left.bar_chart(chart_data["first_read_share"])
