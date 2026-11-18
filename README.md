@@ -2,6 +2,8 @@
 
 A fantasy football website that shows advanced usage stats for every WR, TE, and RB, calculated from free NFL play-by-play data.
 
+**Live site: [fantasy-usage.streamlit.app](https://fantasy-usage.streamlit.app)**
+
 Built with Python, pandas, and Streamlit.
 
 ## Stats
