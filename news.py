@@ -21,7 +21,7 @@ FEEDS = {
 }
 
 
-def get_headlines(source, limit=8):
+def get_headlines(source, limit=30):
     """Return the newest items from one feed as a list of {title, link, published}.
     Keeps the feed's own order (newest first). If the feed can't be reached,
     returns an empty list instead of crashing the site."""

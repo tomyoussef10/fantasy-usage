@@ -29,11 +29,18 @@ def show_news(source, show_times):
     times = [h["published"] for h in headlines if h["published"]]
     if times and not show_times:
         st.caption(f"Updated {max(times).strftime('%b %d, %-I:%M %p')} ET")
-    for h in headlines:
+    def show_item(h):
         line = f"**[{h['title']}]({h['link']})**"
         if show_times and h["published"]:
             line += f"  \n{h['published'].strftime('%b %d, %-I:%M %p')} ET"
         st.markdown(line)
+
+    for h in headlines[:8]:
+        show_item(h)
+    # A toggle, not an expander: Streamlit doesn't allow an expander inside another one
+    if len(headlines) > 8 and st.toggle(f"Show more ({len(headlines) - 8})", key=f"more_{source}"):
+        for h in headlines[8:]:
+            show_item(h)
 
 
 with st.expander("Latest NFL news", expanded=True):
