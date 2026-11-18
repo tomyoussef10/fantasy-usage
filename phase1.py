@@ -81,12 +81,15 @@ def load_snaps(source=SNAPS_URL, players=None):
 
 
 def load_status(source=ROSTERS_URL):
-    """Each player's current roster status (Active, Injured reserve, ...),
-    taken from the most recent week of the weekly rosters file."""
-    rosters = pd.read_csv(source, usecols=["gsis_id", "week", "status"])
+    """Each player's current roster status (Active, Injured reserve, ...) and bio
+    (photo, jersey number, height, weight, college, experience), taken from the most
+    recent week of the weekly rosters file."""
+    rosters = pd.read_csv(source, usecols=["gsis_id", "week", "status", "jersey_number",
+                                           "height", "weight", "college", "years_exp",
+                                           "birth_date", "headshot_url"])
     latest = rosters.sort_values("week").drop_duplicates("gsis_id", keep="last")
     latest["status"] = latest["status"].map(STATUS_NAMES).fillna(latest["status"])
-    return latest.rename(columns={"gsis_id": "player_id"})[["player_id", "status"]]
+    return latest.rename(columns={"gsis_id": "player_id"}).drop(columns="week")
 
 
 # ---------- Step 2: receiving stats ----------

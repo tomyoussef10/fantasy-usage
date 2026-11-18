@@ -3,13 +3,14 @@ Fantasy Usage Stats - the website
 Run with:  python3 -m streamlit run app.py
 """
 
+import pandas as pd
 import streamlit as st
 import phase1
 import news
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
-st.caption(f"{phase1.SEASON} regular season · Data: nflverse · "
+st.caption(f"{phase1.SEASON} regular season · Data: nflverse · Player photos: NFL · "
            "Charting data (first reads, drops, contested and catchable balls): FTN Data via nflverse")
 
 
@@ -183,6 +184,29 @@ with player_tab:
     else:
         player_rows = table[table["full_name"] == name]
         player_weeks = weekly[weekly["full_name"] == name]
+
+        # Player card: photo, jersey number, height, weight, age, college, experience
+        bio = player_rows.iloc[0]
+        photo, details = st.columns([1, 4])
+        if isinstance(bio["headshot_url"], str):
+            photo.image(bio["headshot_url"], width=150)
+        with details:
+            jersey = f"#{int(bio['jersey_number'])} · " if pd.notna(bio["jersey_number"]) else ""
+            st.subheader(f"{name}")
+            st.write(f"{jersey}{bio['position']} · {bio['team']}")
+            facts = []
+            if pd.notna(bio["height"]):
+                facts.append(f"{int(bio['height']) // 12}'{int(bio['height']) % 12}\"")
+            if pd.notna(bio["weight"]):
+                facts.append(f"{int(bio['weight'])} lb")
+            if pd.notna(bio["birth_date"]):
+                age = (pd.Timestamp.today() - pd.Timestamp(bio["birth_date"])).days // 365
+                facts.append(f"Age {age}")
+            if pd.notna(bio["years_exp"]):
+                facts.append(f"{int(bio['years_exp'])} yrs exp")
+            if isinstance(bio["college"], str):
+                facts.append(bio["college"].replace(";", ","))
+            st.write(" · ".join(facts))
 
         current_status = player_rows["status"].iloc[0]
         if current_status == "❌ Out for season":

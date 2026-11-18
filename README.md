@@ -46,4 +46,4 @@ streamlit run app.py
 
 ## Data
 
-Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). News from RotoWire and ESPN RSS feeds. Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
+Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). News from RotoWire and ESPN RSS feeds. Player photos and bios from nflverse weekly rosters (photos hosted by the NFL). Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
