@@ -20,7 +20,7 @@ Built with Python, pandas, and Streamlit.
 | Carries and rush share | Running plays and the player's share of the team's carries |
 | GL carries | Carries inside the opponent's 5-yard line |
 | PPR points | Fantasy points in PPR scoring |
-| Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. The buy low list hides inactive players by default |
+| Status | Current roster status (Active, Injured reserve, ...) from nflverse weekly rosters. Injured reserve players are marked with ⚠️; released, retired, and practice-squad players are left off the buy low list |
 | Expected points | What a player's usage is usually worth, from a least-squares regression of PPR points on targets, air yards, red zone targets, carries, and goal-line carries |
 
 The site opens with the latest NFL headlines, then has four tabs: **Receivers**, **Running backs**, **Buy low** (players scoring below or above what their usage predicts), and **Player search**, where you can look up any player and see weekly bar charts. Filter by week range and team in the sidebar.

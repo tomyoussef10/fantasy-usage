@@ -79,6 +79,7 @@ weekly = weekly[weekly["week"].between(weeks[0], weeks[1])]
 table = phase1.build_table(plays, players, snaps)
 table = table.merge(status, on="player_id", how="left")
 table["status"] = table["status"].fillna("Unknown")
+table.loc[table["status"] == "Injured reserve", "status"] = "⚠️ Injured reserve"
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
 if team != "All":
@@ -142,11 +143,13 @@ with buy_low_tab:
              "so they're good trade targets. Players far **above** expected may be "
              "scoring on luck that won't last.")
     min_touches = st.slider("Minimum targets + carries", 0, 200, 40)
-    active_only = st.checkbox("Only show active players (hide injured reserve, released, etc.)",
-                              value=True)
+    hide_ir = st.checkbox("Hide players on injured reserve", value=False)
     rows = table[(table["targets"] + table["carries"]) >= min_touches]
-    if active_only:
-        rows = rows[rows["status"] == "Active"]
+    # Released, retired, and practice-squad players can't help a fantasy team, so they're
+    # always hidden. Injured reserve players can come back, so they're shown with a warning.
+    allowed = ["Active", "⚠️ Injured reserve"] if not hide_ir else ["Active"]
+    rows = rows[rows["status"].isin(allowed)]
+    st.caption("⚠️ = on injured reserve. Check the news for how long they're expected to be out.")
     columns = ["player", "team", "position", "status", "targets", "carries", "ppr_points",
                "expected_points", "points_below_expected"]
     left, right = st.columns(2)
@@ -167,6 +170,12 @@ with player_tab:
     else:
         player_rows = table[table["full_name"] == name]
         player_weeks = weekly[weekly["full_name"] == name]
+
+        current_status = player_rows["status"].iloc[0]
+        if current_status == "⚠️ Injured reserve":
+            st.warning(f"{name} is on injured reserve. Check the news for his expected return.")
+        elif current_status != "Active":
+            st.warning(f"{name}'s current status: {current_status}.")
 
         # Totals across the chosen weeks (added up if he played for two teams)
         totals = st.columns(5)
