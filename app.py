@@ -14,21 +14,36 @@ st.caption(f"{phase1.SEASON} regular season · Data: nflverse · "
 
 
 # ---------- Part 0: latest NFL news at the top ----------
-@st.cache_data(ttl=60 * 15)  # check for new headlines every 15 minutes
-def get_news():
-    return news.get_headlines()
+@st.cache_data(ttl=60 * 10)  # check for new news every 10 minutes
+def get_news(source):
+    return news.get_headlines(source)
+
+
+def show_news(source, show_times):
+    """One news column. ESPN stamps every item with the feed's update time,
+    so per-item times are only shown for feeds that have real ones."""
+    headlines = get_news(source)
+    if not headlines:
+        st.write(f"{source} news is unavailable right now.")
+        return
+    times = [h["published"] for h in headlines if h["published"]]
+    if times and not show_times:
+        st.caption(f"Updated {max(times).strftime('%b %d, %I:%M %p')}")
+    for h in headlines:
+        line = f"**[{h['title']}]({h['link']})**"
+        if show_times and h["published"]:
+            line += f"  \n{h['published'].strftime('%b %d, %I:%M %p')}"
+        st.markdown(line)
 
 
 with st.expander("Latest NFL news", expanded=True):
-    headlines = get_news()
-    if headlines:
-        times = [h["published"] for h in headlines if h["published"]]
-        if times:
-            st.caption(f"Updated {max(times).strftime('%b %d, %I:%M %p')}")
-        for h in headlines:
-            st.markdown(f"**[{h['title']}]({h['link']})**  \n{h['source']}")
-    else:
-        st.write("News is unavailable right now. Check back soon.")
+    player_news, headlines_col = st.columns(2)
+    with player_news:
+        st.subheader("Player news (RotoWire)")
+        show_news("RotoWire", show_times=True)
+    with headlines_col:
+        st.subheader("Headlines (ESPN)")
+        show_news("ESPN", show_times=False)
     st.link_button("Breaking updates: Underdog NFL on X", "https://x.com/UnderdogNFL")
 
 

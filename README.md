@@ -27,7 +27,7 @@ The site opens with the latest NFL headlines, then has four tabs: **Receivers**,
 ## How it works
 
 - `phase1.py` loads the data and calculates each stat. Each play is one row, and stats come from filtering plays and grouping them by player and team.
-- `news.py` reads the latest NFL headlines from ESPN's free RSS feed and links to the full stories.
+- `news.py` reads free RSS feeds: RotoWire fantasy player news and ESPN NFL headlines, each linking to the full story.
 - `app.py` builds the website: sidebar filters, the three tabs, tables, and charts.
 
 Fantasy points match nflverse's official PPR totals for 99% of players.
@@ -41,4 +41,4 @@ streamlit run app.py
 
 ## Data
 
-Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
+Play-by-play and snap count data from [nflverse](https://github.com/nflverse/nflverse-data). News from RotoWire and ESPN RSS feeds. Charting data (first reads, drops, contested and catchable balls) from FTN Data via nflverse, used under the CC-BY-SA 4.0 license.
