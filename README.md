@@ -29,9 +29,12 @@ The site opens with the latest NFL headlines, then has tabs for **Projections**,
 
 `projections.py` projects every QB, RB, WR, and TE for next week and the rest of the season:
 
-projection = form (last 4 games weighted over the season; half actual points, half expected points from usage) × matchup (points the opponent allows to that position vs. league average) × Vegas environment (team implied points vs. its usual scoring) × shadow coverage.
+projection = form (last 4 games weighted over the season; half actual points, half expected points from usage) × matchup (points the opponent allows to that position vs. league average) × Vegas environment (team implied points vs. its usual scoring) × shadow coverage, with two corrections:
 
-Backtest on 2026 weeks 5-10 (1,038 player-games, projecting each week with only earlier games): average miss 5.89 points per player vs. 6.03 for a simple season average.
+- **Regression to the mean:** each player keeps 80% of his distance from the average fantasy-relevant player at his position, because hot streaks include luck.
+- **Calibration:** past projections vs. real results fit actual = 0.36 + 0.933 × projection, which removes leftover bias. Fit on weeks 5-7, it also removed the bias on weeks 8-10.
+
+Backtest on 2026 weeks 5-10 (projecting each week with only earlier games): average miss 5.83 points per player with zero bias, vs. 6.03 (and +0.72 bias, too high) for a simple season average.
 
 Shadow coverage comes from `shadow_matchups.txt` (one `Receiver, Cornerback` per line, kept by hand from the news each week); a shadowed receiver keeps 85% of his projection.
 

@@ -214,8 +214,9 @@ with proj_tab:
         st.write(f"**Week {next_week} projections** ({scoring} scoring)")
         st.caption("Projection = recent and season form (half points, half usage) × matchup "
                    "(points the opponent allows to the position) × Vegas implied team points "
-                   "× shadow coverage. Backtested on weeks 5-10: average miss 5.9 points per "
-                   "player, slightly better than a season average. Treat these as estimates.")
+                   "× shadow coverage, pulled toward average to account for luck. Backtested on "
+                   "weeks 5-10: average miss 5.8 points per player with no overall bias, better "
+                   "than a season average. Treat these as estimates.")
         proj_rows = week_proj.merge(status[["player_id", "status"]], on="player_id", how="left")
         proj_rows["status"] = proj_rows["status"].fillna("Unknown")
         proj_rows.loc[proj_rows["status"] == "Injured reserve", "status"] = "⚠️ Injured reserve"

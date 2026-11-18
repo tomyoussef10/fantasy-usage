@@ -20,6 +20,19 @@ import pandas as pd
 USAGE_COLUMNS = ["targets", "air_yards", "rz_targets", "carries", "goal_line_carries"]
 RECENT_GAMES = 4
 SHADOW_PENALTY = 0.85        # a shadowed receiver keeps 85% of his projection
+# Regression to the mean: keep this share of how far a player is from the average starter
+# at his position. Hot streaks include luck, so pure averages run too high for top players.
+# Chosen with the backtest in the README.
+KEEP_SHARE = 0.8
+# Calibration: past projections vs. what actually happened (weeks 5-10 of 2026) fit the line
+# actual = 0.36 + 0.933 x projection. Applying it removes the leftover upward bias.
+CALIBRATION = (0.36, 0.933)
+
+
+def calibrate(points):
+    """Correct the overall scale using how past projections compared with real results."""
+    intercept, slope = CALIBRATION
+    return (intercept + slope * points).clip(lower=0)
 
 
 def opponents(schedule):
@@ -63,7 +76,14 @@ def baselines(weekly, points_column):
                                           player=("player", "first"),
                                           full_name=("full_name", "first"),
                                           games=("week", "nunique"))
-    info["baseline"] = 0.6 * recent + 0.4 * season
+    raw = 0.6 * recent + 0.4 * season
+
+    # Pull every player part of the way toward the average fantasy-relevant player at his
+    # position (players averaging 5+ points), so hot streaks are trusted less
+    relevant = raw[raw >= 5]
+    position_avg = relevant.groupby(info.loc[relevant.index, "position"]).mean()
+    avg = info["position"].map(position_avg)
+    info["baseline"] = (avg + KEEP_SHARE * (raw - avg)).where(raw >= 5, raw)
     return info.reset_index()
 
 
@@ -115,8 +135,8 @@ def project(weekly, season_table, schedule, plays, points_column, week, shadows=
         out.loc[hit, "shadow"] = corner
         out.loc[hit, "shadow_factor"] = SHADOW_PENALTY
 
-    out["projection"] = (out["baseline"] * out["matchup"] * out["environment"]
-                         * out["shadow_factor"])
+    raw = out["baseline"] * out["matchup"] * out["environment"] * out["shadow_factor"]
+    out["projection"] = calibrate(raw)
     out.loc[out["opponent"].isna(), "projection"] = 0.0    # bye week
     return out
 
@@ -134,7 +154,7 @@ def rest_of_season(weekly, season_table, schedule, plays, points_column, first_w
     remaining = base[["team", "position", "baseline"]].reset_index().merge(games, on="team")
     remaining = remaining.merge(ratings, left_on=["opponent", "position"],
                                 right_on=["defense", "position"], how="left")
-    remaining["points"] = remaining["baseline"] * remaining["matchup"].fillna(1.0)
+    remaining["points"] = calibrate(remaining["baseline"] * remaining["matchup"].fillna(1.0))
     totals = remaining.groupby("player_id").agg(ros_points=("points", "sum"),
                                                 ros_games=("week", "nunique"))
     return totals.reset_index()
