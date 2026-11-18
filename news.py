@@ -38,6 +38,6 @@ def get_headlines(limit=8):
                 headlines.append({"title": title, "link": link,
                                   "source": source, "published": published})
 
-    headlines.sort(key=lambda h: h["published"].timestamp() if h["published"] else 0,
-                   reverse=True)
+    # Keep the feed's own order (newest first). ESPN gives every item the same
+    # date: the time the feed was last updated, not when each story came out.
     return headlines[:limit]

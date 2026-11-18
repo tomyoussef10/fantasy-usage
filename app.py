@@ -22,9 +22,11 @@ def get_news():
 with st.expander("Latest NFL news", expanded=True):
     headlines = get_news()
     if headlines:
+        times = [h["published"] for h in headlines if h["published"]]
+        if times:
+            st.caption(f"Updated {max(times).strftime('%b %d, %I:%M %p')}")
         for h in headlines:
-            when = h["published"].strftime("%b %d, %I:%M %p") if h["published"] else ""
-            st.markdown(f"**[{h['title']}]({h['link']})**  \n{h['source']} · {when}")
+            st.markdown(f"**[{h['title']}]({h['link']})**  \n{h['source']}")
     else:
         st.write("News is unavailable right now. Check back soon.")
     st.link_button("Breaking updates: Underdog NFL on X", "https://x.com/UnderdogNFL")
