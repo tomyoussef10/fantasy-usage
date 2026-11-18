@@ -45,6 +45,7 @@ def data_url(kind, season):
         "snaps": f"snap_counts/snap_counts_{season}.csv",
         "ftn": f"ftn_charting/ftn_charting_{season}.csv",
         "rosters": f"weekly_rosters/roster_weekly_{season}.csv",
+        "injuries": f"injuries/injuries_{season}.csv",
     }
     return f"{BASE_URL}/{files[kind]}"
 
@@ -124,6 +125,18 @@ def load_status(season=SEASON):
     for col in ["sleeper_id", "espn_id"]:
         latest[col] = latest[col].astype("Int64").astype(str).replace("<NA>", None)
     return latest.rename(columns={"gsis_id": "player_id"}).drop(columns="week")
+
+
+def load_injury_report(season=SEASON, week=None):
+    """Official injury report designations (Out, Doubtful, Questionable) for one week.
+    Returns {player_id: designation}. Empty until the NFL releases that week's report."""
+    try:
+        report = pd.read_csv(data_url("injuries", season),
+                             usecols=["week", "gsis_id", "report_status"])
+    except Exception:
+        return {}
+    report = report[(report["week"] == week) & report["report_status"].notna()]
+    return dict(zip(report["gsis_id"], report["report_status"]))
 
 
 # ---------- Step 2: receiving stats ----------

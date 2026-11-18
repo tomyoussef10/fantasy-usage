@@ -38,6 +38,10 @@ Backtest on 2026 weeks 5-10 (projecting each week with only earlier games): aver
 
 Shadow coverage comes from `shadow_matchups.txt` (one `Receiver, Cornerback` per line, kept by hand from the news each week); a shadowed receiver keeps 85% of his projection.
 
+## Out this week
+
+Players listed **Out** or **Doubtful** on the official NFL injury report (nflverse, released Wednesday to Friday) project to 0 that week; **Questionable** players are flagged. For news that breaks before the report, add the player to `out_this_week.txt` and clear it each week.
+
 ## Out for the season
 
 The free data can't tell a short injured reserve stint from a season-ending injury, so `out_for_season.txt` holds a hand-kept list of players ruled out for the year. They're removed from the Buy low list and marked "Out for season" everywhere else. Add a name when the news says a player is done for the season.

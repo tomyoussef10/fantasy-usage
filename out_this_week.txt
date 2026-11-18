@@ -1,0 +1,4 @@
+# Players ruled out for THIS week only (from the news, before the official injury report).
+# One full name per line, spelled like the Player search box. Clear this list every week.
+# Their projection this week becomes 0. Lines starting with # are ignored.
+Jordan Addison

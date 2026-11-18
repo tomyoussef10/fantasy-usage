@@ -140,6 +140,11 @@ def load_shadows(path="shadow_matchups.txt"):
         return {}
 
 
+@st.cache_data(ttl=60 * 60)  # injury reports change during the week: check every hour
+def get_injury_report(season, week):
+    return phase1.load_injury_report(season, week)
+
+
 next_week = int(plays_all["week"].max()) + 1
 has_projections = next_week <= 18
 if has_projections:
@@ -151,6 +156,22 @@ if has_projections:
     ros = projections.rest_of_season(weekly_all, full_table, schedule, plays_all,
                                      "fantasy_points", next_week)
     week_proj = week_proj.merge(ros, on="player_id", how="left")
+
+    # Who can't play this week: official injury report (Out / Doubtful), the hand-kept
+    # out_this_week.txt list, and anyone not on the active roster
+    out_this_week = load_out_for_season("out_this_week.txt")
+    report = get_injury_report(season, next_week)
+    week_proj["injury"] = week_proj["player_id"].map(report).fillna("")
+    week_proj.loc[week_proj["full_name"].isin(out_this_week), "injury"] = "Out"
+    week_proj = week_proj.merge(status[["player_id", "status"]], on="player_id", how="left")
+    cannot_play = (week_proj["injury"].isin(["Out", "Doubtful"]) |
+                   (week_proj["status"] != "Active") |
+                   week_proj["full_name"].isin(out_for_season))
+    week_proj.loc[cannot_play, "projection"] = 0.0
+    week_proj.loc[week_proj["full_name"].isin(out_for_season), "ros_points"] = 0.0
+    week_proj["injury"] = week_proj["injury"].replace(
+        {"Out": "🚫 Out", "Doubtful": "🚫 Doubtful", "Questionable": "❓ Questionable"})
+    week_proj = week_proj.drop(columns="status")
 table = phase1.add_expected_points(table, "fantasy_points")
 
 team = st.sidebar.selectbox("Team", ["All"] + sorted(table["team"].unique()))
@@ -179,7 +200,7 @@ COLUMN_NAMES = {
     "points_allowed_per_game": "Points allowed/game", "yards_allowed_per_game": "Yards allowed/game",
     "dst_points": "Fantasy points",
     "opponent": "Opp", "matchup_label": "Matchup", "implied": "Team implied pts",
-    "shadow": "Shadowed by", "projection": "Projected pts", "ros_points": "Rest of season pts",
+    "shadow": "Shadowed by", "injury": "Injury", "projection": "Projected pts", "ros_points": "Rest of season pts",
 }
 PERCENT_COLUMNS = ["fg_pct", "sack_rate", "snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
@@ -221,8 +242,6 @@ with proj_tab:
         proj_rows["status"] = proj_rows["status"].fillna("Unknown")
         proj_rows.loc[proj_rows["status"] == "Injured reserve", "status"] = "⚠️ Injured reserve"
         proj_rows.loc[proj_rows["full_name"].isin(out_for_season), "status"] = "❌ Out for season"
-        proj_rows.loc[proj_rows["status"] != "Active", "projection"] = 0.0
-        proj_rows.loc[proj_rows["status"] == "❌ Out for season", "ros_points"] = 0.0
         proj_rows["matchup_label"] = pd.cut(proj_rows["matchup"], [0, 0.95, 1.05, 2],
                                             labels=["🔴 Tough", "⚪ Neutral", "🟢 Good"])
         proj_rows["shadow"] = proj_rows["shadow"].where(proj_rows["shadow"] == "",
@@ -235,11 +254,13 @@ with proj_tab:
             proj_rows = proj_rows[proj_rows["team"] == team]
         proj_rows = proj_rows[proj_rows["baseline"] >= 3].sort_values("projection",
                                                                       ascending=False)
-        show_table(proj_rows, ["player", "team", "position", "status", "opponent",
+        show_table(proj_rows, ["player", "team", "position", "status", "injury", "opponent",
                                "matchup_label", "implied", "shadow", "projection",
                                "ros_points"])
-        st.caption("Shadow coverage comes from shadow_matchups.txt, a list kept by hand from "
-                   "the news each week.")
+        st.caption("Injury designations come from the official NFL injury report (released "
+                   "Wednesday to Friday) plus out_this_week.txt for news that breaks earlier. "
+                   "Out and Doubtful players project to 0. Shadow coverage comes from "
+                   "shadow_matchups.txt. Both lists are kept by hand from the news each week.")
 
 with k_tab:
     st.caption("Standard kicker scoring: 3 points for a field goal under 40 yards, 4 for 40-49, "
