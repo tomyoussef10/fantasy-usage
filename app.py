@@ -8,6 +8,7 @@ import streamlit as st
 import phase1
 import news
 import leagues
+import rankings
 
 st.set_page_config(page_title="Fantasy Usage Stats", layout="wide")
 st.title("Fantasy Usage Stats")
@@ -227,7 +228,7 @@ def get_league_rosters(platform, league_id, season):
 
 with league_tab:
     platform = st.radio("Platform", ["Sleeper", "ESPN"], horizontal=True)
-    rosters = None
+    rosters, lineup = None, None
     try:
         if platform == "Sleeper":
             username = st.text_input("Sleeper username")
@@ -237,13 +238,14 @@ with league_tab:
                     st.info(f"No {season} leagues found for {username}.")
                 else:
                     league_name = st.selectbox("League", list(user_leagues))
-                    rosters = get_league_rosters("Sleeper", user_leagues[league_name], season)
+                    rosters, lineup = get_league_rosters("Sleeper", user_leagues[league_name],
+                                                         season)
         else:
             st.caption("Only **public** ESPN leagues can be synced. Your league ID is the number "
                        "after leagueId= in your ESPN league's web address.")
             league_id = st.text_input("ESPN league ID")
             if league_id:
-                rosters = get_league_rosters("ESPN", league_id, season)
+                rosters, lineup = get_league_rosters("ESPN", league_id, season)
     except leagues.LeagueError as problem:
         st.error(str(problem))
     st.caption("Yahoo and NFL.com aren't supported yet.")
@@ -260,6 +262,36 @@ with league_tab:
 
         columns = ["player", "team", "position", "status", "snap_share", "target_share",
                    "carries", "fantasy_points", "expected_points"]
+        # ----- Power rankings -----
+        team_ranks, starters, positions = rankings.power_rankings(league_table, weekly, lineup)
+        st.subheader("Power rankings")
+        st.caption("Player value = points per game blended with expected points per game. "
+                   "Each team's best healthy lineup is scored and the top team is set to 100.")
+        st.dataframe(team_ranks.rename(columns={"rank": "Rank", "fantasy_team": "Team",
+                                                "score": "Score"}),
+                     hide_index=True, column_config={"Score": st.column_config.ProgressColumn(
+                         "Score", min_value=0, max_value=100, format="%d")})
+
+        teams = len(team_ranks)
+        mine_pos = positions[positions["fantasy_team"] == my_team].copy()
+        mine_pos["Rank"] = [f"{rankings.ordinal(r)} of {teams}" for r in mine_pos["rank"]]
+        mine_slots = starters[starters["fantasy_team"] == my_team].copy()
+        mine_slots["Rank"] = [f"{rankings.ordinal(r)} of {teams}" for r in mine_slots["slot_rank"]]
+        my_rank = int(team_ranks.loc[team_ranks["fantasy_team"] == my_team, "rank"].iloc[0])
+        st.write(f"**{my_team}** is ranked **{rankings.ordinal(my_rank)} of {teams}**.")
+
+        left, right = st.columns(2)
+        with left:
+            st.caption("Positional rankings (all your starters at each position)")
+            st.dataframe(mine_pos[["position", "Rank", "grade"]].rename(
+                columns={"position": "Pos", "grade": "Grade"}), hide_index=True)
+        with right:
+            st.caption("Starter rankings (each slot vs. the same slot on every team)")
+            mine_slots["value"] = mine_slots["value"].round(1)
+            st.dataframe(mine_slots[["slot", "player", "value", "Rank", "grade"]].rename(
+                columns={"slot": "Slot", "player": "Player", "value": "Value per game",
+                         "grade": "Grade"}), hide_index=True)
+
         st.subheader("Your roster")
         mine = league_table[league_table["fantasy_team"] == my_team]
         show_table(mine.sort_values("fantasy_points", ascending=False), columns)
