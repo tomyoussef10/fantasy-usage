@@ -141,10 +141,20 @@ COLUMN_NAMES = {
     "rushing_yards": "Rush yds", "rush_rec_tds": "Rush/rec TD",
     "fantasy_points": f"{scoring} points", "fantasy_team": "Fantasy team", "expected_points": "Expected points",
     "points_below_expected": "Points below expected",
+    "games": "Games", "fg_made": "FG made", "fg_attempts": "FG att", "fg_pct": "FG %",
+    "fg_0_39": "FG 0-39", "fg_40_49": "FG 40-49", "fg_50_plus": "FG 50+",
+    "fg_50_attempts": "FG 50+ att", "longest_fg": "Long", "xp_made": "XP made",
+    "xp_attempts": "XP att", "k_points": "Fantasy points", "points_per_game": "Points per game",
+    "sacks": "Sacks", "sack_rate": "Sack rate %", "fumbles_recovered": "Fumbles rec",
+    "takeaways": "Takeaways", "defensive_tds": "D/ST TD", "safeties": "Safeties",
+    "points_allowed_per_game": "Points allowed/game", "yards_allowed_per_game": "Yards allowed/game",
+    "dst_points": "Fantasy points",
 }
-PERCENT_COLUMNS = ["snap_share", "target_share", "first_read_share", "air_yards_share",
+PERCENT_COLUMNS = ["fg_pct", "sack_rate", "snap_share", "target_share", "first_read_share", "air_yards_share",
                    "rz_target_share", "rush_share"]
-COUNT_COLUMNS = ["passing_yards", "passing_tds", "interceptions", "rushing_yards",
+COUNT_COLUMNS = ["games", "fg_made", "fg_attempts", "fg_0_39", "fg_40_49", "fg_50_plus",
+                 "fg_50_attempts", "xp_made", "xp_attempts", "sacks", "fumbles_recovered",
+                 "takeaways", "defensive_tds", "safeties", "passing_yards", "passing_tds", "interceptions", "rushing_yards",
                  "rush_rec_tds", "targets", "catchable_targets", "contested_targets", "drops",
                  "carries", "goal_line_carries"]
 
@@ -162,8 +172,36 @@ def show_table(rows, columns):
 
 
 # ---------- Part 4: the three tabs ----------
-qbs_tab, receivers_tab, rbs_tab, buy_low_tab, league_tab, player_tab = st.tabs(
-    ["Quarterbacks", "Receivers", "Running backs", "Buy low", "My league", "Player search"])
+qbs_tab, receivers_tab, rbs_tab, k_tab, dst_tab, buy_low_tab, league_tab, player_tab = st.tabs(
+    ["Quarterbacks", "Receivers", "Running backs", "Kickers", "Defenses", "Buy low",
+     "My league", "Player search"])
+
+with k_tab:
+    st.caption("Standard kicker scoring: 3 points for a field goal under 40 yards, 4 for 40-49, "
+               "5 for 50+, 1 per extra point, -1 per miss.")
+    kickers = phase1.kicker_stats(plays).rename(columns={"fantasy_points": "k_points"}).merge(
+        players[["player_id", "player"]], on="player_id", how="left")
+    kickers = kickers.merge(status[["player_id", "status"]], on="player_id", how="left")
+    if team != "All":
+        kickers = kickers[kickers["team"] == team]
+    min_fg = st.slider("Minimum field goal attempts", 0, 40, 5)
+    kickers = kickers[kickers["fg_attempts"] >= min_fg].sort_values("k_points",
+                                                                    ascending=False)
+    show_table(kickers, ["player", "team", "status", "games", "fg_made", "fg_attempts", "fg_pct",
+                         "fg_0_39", "fg_40_49", "fg_50_plus", "fg_50_attempts", "longest_fg",
+                         "xp_made", "xp_attempts", "k_points", "points_per_game"])
+
+with dst_tab:
+    st.caption("Standard D/ST scoring: 1 per sack, 2 per interception, fumble recovery, or safety, "
+               "6 per defensive or return TD, plus points allowed (10 for a shutout down to -4 "
+               "for 35+).")
+    defenses = phase1.defense_stats(plays).rename(columns={"fantasy_points": "dst_points"})
+    if team != "All":
+        defenses = defenses[defenses["team"] == team]
+    show_table(defenses, ["team", "games", "sacks", "sack_rate", "interceptions",
+                          "fumbles_recovered", "takeaways", "defensive_tds", "safeties",
+                          "points_allowed_per_game", "yards_allowed_per_game", "dst_points",
+                          "points_per_game"])
 
 with qbs_tab:
     min_pass_yards = st.slider("Minimum passing yards", 0, 3000, 500)

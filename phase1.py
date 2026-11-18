@@ -19,7 +19,7 @@ import pandas as pd
 
 # Bump this number whenever the loaded data gets new columns. The website includes it in
 # its cache key, so old saved data is thrown away automatically after an update.
-DATA_VERSION = 2
+DATA_VERSION = 3
 
 SEASON = 2026                       # the current season (the site's default)
 SEASONS = [2026, 2025]              # seasons visitors can pick
@@ -55,6 +55,11 @@ PBP_COLUMNS = [
     "lateral_receiving_yards", "lateral_rushing_yards",
     "touchdown", "pass_touchdown", "rush_touchdown", "return_touchdown",
     "interception", "fumble_lost", "two_point_conv_result",
+    # kickers and defenses
+    "kicker_player_id", "field_goal_attempt", "field_goal_result", "kick_distance",
+    "extra_point_attempt", "extra_point_result", "defteam", "sack", "safety", "td_team",
+    "home_team", "away_team", "total_home_score", "total_away_score", "yards_gained",
+    "qb_dropback",
 ]
 FTN_COLUMNS = ["nflverse_game_id", "nflverse_play_id", "read_thrown",
                "is_catchable_ball", "is_contested_ball", "is_drop"]
@@ -267,6 +272,87 @@ def scoring_stats(plays):
 def score(table, settings=PPR_SCORING):
     """Fantasy points = each scoring stat times its point value, added up."""
     return sum(table[stat] * value for stat, value in settings.items())
+
+
+# ---------- Step 5b: kickers and team defenses ----------
+
+def kicker_stats(plays):
+    """Field goals by distance, extra points, accuracy, and standard fantasy points:
+    3 for a FG under 40 yards, 4 for 40-49, 5 for 50+, 1 per extra point,
+    -1 per missed FG or extra point."""
+    fg = plays[plays["field_goal_attempt"] == 1]
+    xp = plays[plays["extra_point_attempt"] == 1]
+    made = fg["field_goal_result"] == "made"
+    fg = fg.assign(made=made.astype(int),
+                   made_0_39=(made & (fg["kick_distance"] < 40)).astype(int),
+                   made_40_49=(made & fg["kick_distance"].between(40, 49)).astype(int),
+                   made_50=(made & (fg["kick_distance"] >= 50)).astype(int),
+                   att_50=(fg["kick_distance"] >= 50).astype(int),
+                   long=fg["kick_distance"].where(made))
+    kicks = fg.groupby(["posteam", "kicker_player_id"]).agg(
+        fg_attempts=("made", "size"), fg_made=("made", "sum"), fg_0_39=("made_0_39", "sum"),
+        fg_40_49=("made_40_49", "sum"), fg_50_plus=("made_50", "sum"),
+        fg_50_attempts=("att_50", "sum"), longest_fg=("long", "max"),
+        games=("game_id", "nunique"))
+    xps = xp.assign(good=(xp["extra_point_result"] == "good").astype(int)).groupby(
+        ["posteam", "kicker_player_id"]).agg(xp_attempts=("good", "size"), xp_made=("good", "sum"),
+                                             xp_games=("game_id", "nunique"))
+    table = kicks.join(xps, how="outer").fillna(0).reset_index()
+    table["games"] = table[["games", "xp_games"]].max(axis=1)
+    table["fg_pct"] = table["fg_made"] / table["fg_attempts"].where(table["fg_attempts"] > 0)
+    table["fantasy_points"] = (3 * table["fg_0_39"] + 4 * table["fg_40_49"] + 5 * table["fg_50_plus"]
+                               + table["xp_made"]
+                               - (table["fg_attempts"] - table["fg_made"])
+                               - (table["xp_attempts"] - table["xp_made"]))
+    table["points_per_game"] = table["fantasy_points"] / table["games"]
+    return table.rename(columns={"posteam": "team", "kicker_player_id": "player_id"}).drop(
+        columns="xp_games")
+
+
+def points_allowed_score(points):
+    """Standard fantasy points for points allowed in one game."""
+    for limit, score in [(0, 10), (6, 7), (13, 4), (20, 1), (27, 0), (34, -1)]:
+        if points <= limit:
+            return score
+    return -4
+
+
+def defense_stats(plays):
+    """Team defense (D/ST) stats and standard fantasy points: 1 per sack, 2 per interception,
+    fumble recovery, or safety, 6 per defensive or return TD, plus points for points allowed."""
+    # Final score of every game, from the last play
+    finals = plays.sort_values("play_id").groupby("game_id").last()
+    games = pd.concat([
+        pd.DataFrame({"team": finals["home_team"], "points_allowed": finals["total_away_score"]}),
+        pd.DataFrame({"team": finals["away_team"], "points_allowed": finals["total_home_score"]}),
+    ])
+    games["pa_points"] = games["points_allowed"].apply(points_allowed_score)
+    per_team = games.groupby("team").agg(games=("points_allowed", "size"),
+                                         points_allowed=("points_allowed", "sum"),
+                                         pa_points=("pa_points", "sum"))
+
+    # Only real offensive plays, so fumbles on punt and kick returns aren't credited wrongly
+    on_defense = plays[plays["defteam"].notna() & plays["play_type"].isin(["pass", "run"])]
+    d = on_defense.groupby("defteam").agg(
+        sacks=("sack", "sum"), interceptions=("interception", "sum"),
+        fumbles_recovered=("fumble_lost", "sum"), safeties=("safety", "sum"),
+        yards_allowed=("yards_gained", "sum"), dropbacks_faced=("qb_dropback", "sum"))
+    # D/ST touchdowns: scored by the team that wasn't on offense (pick-sixes, fumble returns,
+    # punt returns), plus kickoff and punt return TDs
+    def_tds = plays[(plays["touchdown"] == 1) &
+                    ((plays["td_team"] == plays["defteam"]) | (plays["return_touchdown"] == 1))]
+    d["defensive_tds"] = def_tds.groupby("td_team").size()
+
+    table = per_team.join(d).fillna(0).reset_index().rename(columns={"index": "team"})
+    table["sack_rate"] = table["sacks"] / table["dropbacks_faced"].where(table["dropbacks_faced"] > 0)
+    table["takeaways"] = table["interceptions"] + table["fumbles_recovered"]
+    table["points_allowed_per_game"] = table["points_allowed"] / table["games"]
+    table["yards_allowed_per_game"] = table["yards_allowed"] / table["games"]
+    table["fantasy_points"] = (table["sacks"] + 2 * table["interceptions"]
+                               + 2 * table["fumbles_recovered"] + 2 * table["safeties"]
+                               + 6 * table["defensive_tds"] + table["pa_points"])
+    table["points_per_game"] = table["fantasy_points"] / table["games"]
+    return table.sort_values("fantasy_points", ascending=False)
 
 
 # ---------- Step 6: expected points (for the buy low list) ----------
